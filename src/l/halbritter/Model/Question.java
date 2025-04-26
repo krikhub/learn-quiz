@@ -11,7 +11,7 @@ public class Question {
     private String topic;
     private int difficulty;
 
-    Question(int questionId, String questionText, ArrayList<String> answers, int correctIndex, String topic, int difficulty) {
+    public Question(int questionId, String questionText, ArrayList<String> answers, int correctIndex, String topic, int difficulty) {
         this.questionId = questionId;
         this.questionText = questionText;
         this.answers = answers;
@@ -20,5 +20,8 @@ public class Question {
         this.difficulty = difficulty;
     }
 
+    public int getQuestionId() {
+        return questionId;
+    }
 
 }

@@ -9,4 +9,8 @@ public class User {
         this.username = username;
         this.score = score;
     }
+
+    public String getUsername() {
+        return username;
+    }
 }

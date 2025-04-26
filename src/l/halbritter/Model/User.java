@@ -1,4 +1,4 @@
-package l.halbritter.Classes;
+package l.halbritter.Model;
 
 public class User {
 

@@ -1,4 +1,4 @@
-package l.halbritter.Classes;
+package l.halbritter.Model;
 
 import java.util.ArrayList;
 

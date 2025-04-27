@@ -1,10 +1,9 @@
 package l.halbritter;
 
-import l.halbritter.View.QuizView;
+import l.halbritter.Controller.QuizController;
 
 public class Main {
     public static void main(String[] args) {
-        QuizView quizView = new QuizView();
-        quizView.startQuiz();
+        new QuizController().startApplication();
     }
 }

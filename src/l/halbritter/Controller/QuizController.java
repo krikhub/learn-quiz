@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class QuizController {
-    private final Database database;
     private final QuizUI view;
 
     private List<Question> allQuestions;
@@ -22,38 +21,67 @@ public class QuizController {
     private User currentUser;
 
     public QuizController() {
-        database = new Database();
         view = new QuizUI();
     }
 
     public void startApplication() {
-        allQuestions = database.loadQuestions();
+        Database.connect();
+        allQuestions = Database.loadQuestions();
+
         view.showMainMenu(
                 e -> showQuestionsForEditing(),
                 e -> {
-                    List<String> existingUsers = database.loadUsers().stream().map(User::getUsername).collect(Collectors.toList());
-                    List<String> topics = allQuestions.stream().map(Question::getTopic).distinct().collect(Collectors.toList());
+                    List<String> existingUsers = Database.loadUsers().stream()
+                            .map(User::getUsername)
+                            .collect(Collectors.toList());
+                    List<String> topics = allQuestions.stream()
+                            .map(Question::getTopic)
+                            .distinct()
+                            .collect(Collectors.toList());
                     view.showStartQuizPanel(this::handleStartQuiz, this::handleCancel, existingUsers, topics);
                 },
-                e -> System.exit(0)
+                e -> {
+                    Database.disconnect();
+                    System.exit(0);
+                }
         );
     }
 
     private void showQuestionsForEditing() {
-        allQuestions = database.loadQuestions();
+        allQuestions = Database.loadQuestions();
         Map<String, List<Question>> questionsByTopic = allQuestions.stream()
+                .filter(q -> q.getTopic() != null)
                 .collect(Collectors.groupingBy(Question::getTopic));
+
+        view.addTopicButton.addActionListener(evt -> {
+            String newTopic = JOptionPane.showInputDialog(null, "Neues Thema eingeben:");
+            if (newTopic != null && !newTopic.trim().isEmpty()) {
+                Database.addTopic(newTopic.trim());
+                JOptionPane.showMessageDialog(null, "Thema hinzugefügt!");
+                showQuestionsForEditing();
+            }
+        });
+
+        view.deleteTopicButton.addActionListener(evt -> {
+            String topicToDelete = JOptionPane.showInputDialog(null, "Thema zum Löschen eingeben:");
+            if (topicToDelete != null && !topicToDelete.trim().isEmpty()) {
+                Database.deleteTopic(topicToDelete.trim());
+                JOptionPane.showMessageDialog(null, "Thema gelöscht!");
+                showQuestionsForEditing();
+            }
+        });
 
         view.showQuestionListPanel(
                 questionsByTopic,
                 this::handleEditQuestion,
                 e -> {
-                    List<String> topics = database.loadTopics();
+                    List<String> topics = Database.loadTopics();
                     view.showEditQuizPanel(this::handleCreateQuestion, this::handleCancelToQuestions, topics);
                 },
                 this::handleCancelToMain
         );
     }
+
 
     private void handleEditQuestion(ActionEvent e) {
         int questionId = Integer.parseInt(e.getActionCommand());
@@ -63,7 +91,7 @@ public class QuizController {
                 .orElse(null);
 
         if (questionToEdit != null) {
-            List<String> topics = database.loadTopics();
+            List<String> topics = Database.loadTopics();
             view.showEditQuizPanel(this::handleCreateQuestion, this::handleCancelToQuestions, topics);
             view.topicsCombo.setSelectedItem(questionToEdit.getTopic());
             view.questionField.setText(questionToEdit.getQuestionText());
@@ -71,17 +99,12 @@ public class QuizController {
             for (int i = 0; i < 4; i++) {
                 view.answerFields[i].setText(answers[i]);
             }
-            view.difficultyCombo.setSelectedItem(String.valueOf(questionToEdit.getDifficulty()));
             view.correctAnswerCombo.setSelectedIndex(questionToEdit.getCorrectAnswer());
         }
     }
 
     private void handleCreateQuestion(ActionEvent e) {
         createOrUpdateQuestion(null);
-    }
-
-    private void handleUpdateQuestion(ActionEvent e, Question existingQuestion) {
-        createOrUpdateQuestion(existingQuestion);
     }
 
     private void createOrUpdateQuestion(Question existingQuestion) {
@@ -91,7 +114,6 @@ public class QuizController {
         for (int i = 0; i < 4; i++) {
             answers[i] = view.answerFields[i].getText();
         }
-        int difficulty = Integer.parseInt((String) view.difficultyCombo.getSelectedItem());
         int correctAnswer = view.correctAnswerCombo.getSelectedIndex();
 
         Question question = existingQuestion != null ? existingQuestion : new Question();
@@ -102,9 +124,8 @@ public class QuizController {
         question.setAnswers(answers);
         question.setCorrectAnswer(correctAnswer);
         question.setTopic(topic);
-        question.setDifficulty(difficulty);
 
-        database.addOrUpdateQuestion(question);
+        Database.addOrUpdateQuestion(question);
         JOptionPane.showMessageDialog(null, "Frage wurde gespeichert!");
         startApplication();
     }
@@ -113,10 +134,9 @@ public class QuizController {
         String username = view.newUserField.getText();
         if (!username.isEmpty()) {
             currentUser = new User(username);
-            database.addOrUpdateUser(currentUser);
         } else {
             String selectedUser = (String) view.existingUserCombo.getSelectedItem();
-            currentUser = database.loadUsers().stream()
+            currentUser = Database.loadUsers().stream()
                     .filter(u -> u.getUsername().equals(selectedUser))
                     .findFirst()
                     .orElse(null);
@@ -132,30 +152,14 @@ public class QuizController {
             JOptionPane.showMessageDialog(null, "Top 10 Worst Questions werden geübt!");
         } else {
             String selectedTopic = (String) view.topicSelectionCombo.getSelectedItem();
-            int selectedDifficulty = Integer.parseInt((String) view.difficultySelectionCombo.getSelectedItem());
-
             currentQuestions = allQuestions.stream()
-                    .filter(q -> q.getTopic().equals(selectedTopic) && q.getDifficulty() == selectedDifficulty)
+                    .filter(q -> q.getTopic().equals(selectedTopic))
                     .collect(Collectors.toList());
         }
 
         wrongQuestions = new ArrayList<>();
-
         askNextQuestion();
     }
-
-    private void handleCancel(ActionEvent e) {
-        startApplication();
-    }
-
-    private void handleCancelToMain(ActionEvent e) {
-        startApplication();
-    }
-
-    private void handleCancelToQuestions(ActionEvent e) {
-        showQuestionsForEditing();
-    }
-
 
     private void askNextQuestion() {
         if (currentQuestions.isEmpty()) {
@@ -165,7 +169,7 @@ public class QuizController {
                 JOptionPane.showMessageDialog(null, "Falsche Fragen werden wiederholt!");
                 askNextQuestion();
             } else {
-                database.addOrUpdateUser(currentUser);
+                Database.addOrUpdateUser(currentUser);
                 JOptionPane.showMessageDialog(null, "Quiz abgeschlossen!");
                 startApplication();
             }
@@ -193,4 +197,17 @@ public class QuizController {
 
         askNextQuestion();
     }
+
+    private void handleCancel(ActionEvent e) {
+        startApplication();
+    }
+
+    private void handleCancelToMain(ActionEvent e) {
+        startApplication();
+    }
+
+    private void handleCancelToQuestions(ActionEvent e) {
+        showQuestionsForEditing();
+    }
 }
+

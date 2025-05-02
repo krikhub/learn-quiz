@@ -7,6 +7,11 @@ public class User {
     private String username;
     private Map<Integer, Integer> wrongQuestionCounts;
 
+    public User() {
+        this.username = "";
+        this.wrongQuestionCounts = new HashMap<>();
+    }
+
     public User(String username) {
         this.username = username;
         this.wrongQuestionCounts = new HashMap<>();
@@ -18,6 +23,10 @@ public class User {
 
     public Map<Integer, Integer> getWrongQuestionCounts() {
         return wrongQuestionCounts;
+    }
+
+    public void setWrongQuestionCounts(Map<Integer, Integer> wrongCounts) {
+        this.wrongQuestionCounts = wrongCounts;
     }
 
     public void addWrongAnswer(Question question) {

@@ -9,11 +9,18 @@ public class Question {
     private String topic;
     private int difficulty;
 
-    // Leerer Konstruktor für JSON-Parsing (Gson)
     public Question() {
     }
 
-    // Voller Konstruktor (optional, für schnelles Erstellen)
+    public Question(int questionId, String questionText, String answer, String topic) {
+        this.questionId = questionId;
+        this.questionText = questionText;
+        this.answers = answer.split("\\|");
+        this.correctAnswer = 0; // Standardmäßig erste Antwort korrekt
+        this.topic = topic;
+        this.difficulty = 1;
+    }
+
     public Question(int questionId, String questionText, String[] answers, int correctAnswer, String topic, int difficulty) {
         this.questionId = questionId;
         this.questionText = questionText;
@@ -69,5 +76,9 @@ public class Question {
 
     public void setDifficulty(int difficulty) {
         this.difficulty = difficulty;
+    }
+
+    public String getAnswerAsCSV() {
+        return String.join("|", answers);
     }
 }

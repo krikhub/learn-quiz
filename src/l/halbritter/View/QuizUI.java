@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 public class QuizUI {
     private JFrame frame;
     private JPanel mainPanel;
+    public JButton addTopicButton = new JButton("Thema hinzufügen");
+    public JButton deleteTopicButton = new JButton("Thema löschen");
 
     public JComboBox<String> topicsCombo;
     public JTextField questionField;
@@ -58,7 +60,10 @@ public class QuizUI {
         frame.setVisible(true);
     }
 
-    public void showQuestionListPanel(Map<String, List<Question>> questionsByTopic, ActionListener editQuestionListener, ActionListener newQuestionListener, ActionListener cancelListener) {
+    public void showQuestionListPanel(Map<String, List<Question>> questionsByTopic,
+                                      ActionListener editQuestionListener,
+                                      ActionListener newQuestionListener,
+                                      ActionListener cancelListener) {
         mainPanel.removeAll();
 
         JPanel listPanel = new JPanel();
@@ -85,6 +90,8 @@ public class QuizUI {
 
         JPanel bottomPanel = new JPanel();
         bottomPanel.add(createNewButton);
+        bottomPanel.add(addTopicButton);
+        bottomPanel.add(deleteTopicButton);
         bottomPanel.add(cancelButton);
 
         JScrollPane scrollPane = new JScrollPane(listPanel);
@@ -108,6 +115,7 @@ public class QuizUI {
 
         panel.add(new JLabel("Themenbereich wählen:"));
         panel.add(topicsCombo);
+
         panel.add(new JLabel("Frage eingeben:"));
         panel.add(questionField);
         for (int i = 0; i < 4; i++) {

@@ -5,10 +5,8 @@ import l.halbritter.Model.Question;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionListener;
-import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class QuizUI {
     private JFrame frame;
@@ -30,6 +28,7 @@ public class QuizUI {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(600, 600);
         frame.setLocationRelativeTo(null);
+
         mainPanel = new JPanel(new BorderLayout());
         frame.getContentPane().add(mainPanel);
     }
@@ -97,7 +96,7 @@ public class QuizUI {
     }
 
     public void showEditQuizPanel(ActionListener createQuestionListener, ActionListener cancelListener, List<String> topics) {
-        frame.getContentPane().removeAll();
+        mainPanel.removeAll();
 
         JPanel panel = new JPanel(new GridLayout(12, 1, 5, 5));
         topicsCombo = new JComboBox<>(topics.toArray(new String[0]));
@@ -129,15 +128,15 @@ public class QuizUI {
         buttonPanel.add(createButton);
         buttonPanel.add(cancelButton);
 
-        frame.getContentPane().add(panel, BorderLayout.CENTER);
-        frame.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+        mainPanel.add(panel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         frame.revalidate();
         frame.repaint();
     }
 
     public void showStartQuizPanel(ActionListener startQuizListener, ActionListener cancelListener, List<String> existingUsers, List<String> topics) {
-        frame.getContentPane().removeAll();
+        mainPanel.removeAll();
 
         JPanel panel = new JPanel(new GridLayout(10, 1, 5, 5));
         newUserField = new JTextField();
@@ -164,8 +163,8 @@ public class QuizUI {
         buttonPanel.add(startButton);
         buttonPanel.add(cancelButton);
 
-        frame.getContentPane().add(panel, BorderLayout.CENTER);
-        frame.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+        mainPanel.add(panel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         frame.revalidate();
         frame.repaint();

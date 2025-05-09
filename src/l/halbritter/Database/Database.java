@@ -40,7 +40,7 @@ public class Database {
                 question   TEXT NOT NULL,
                 answer     TEXT NOT NULL,
                 topic      TEXT,
-                correct    INTEGER NOT NULL DEFAULT 0,
+                correctAnswer    INTEGER NOT NULL DEFAULT 0,
                 difficulty INTEGER NOT NULL DEFAULT 1
             );
         """;
@@ -134,7 +134,7 @@ public class Database {
 
     public static List<Question> loadQuestions() {
         List<Question> questions = new ArrayList<>();
-        String sql = "SELECT id, question, answer, topic, correct, difficulty FROM questions";
+        String sql = "SELECT id, question, answer, topic, correctAnswer, difficulty FROM questions";
         try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 Question q = new Question(
@@ -142,7 +142,7 @@ public class Database {
                         rs.getString("question"),
                         rs.getString("answer"),
                         rs.getString("topic"),
-                        rs.getInt("correct"),
+                        rs.getInt("correctAnswer"),
                         rs.getInt("difficulty")
                 );
                 questions.add(q);
@@ -155,13 +155,13 @@ public class Database {
 
     public static synchronized void addOrUpdateQuestion(Question question) {
         String sql = """
-            INSERT INTO questions (id, question, answer, topic, correct, difficulty)
+            INSERT INTO questions (id, question, answer, topic, correctAnswer, difficulty)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE
               SET question   = excluded.question,
                   answer     = excluded.answer,
                   topic      = excluded.topic,
-                  correct    = excluded.correct,
+                  correctAnswer    = excluded.correctAnswer,
                   difficulty = excluded.difficulty
         """;
         try (PreparedStatement ps = connection.prepareStatement(sql)) {

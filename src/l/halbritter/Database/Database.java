@@ -11,9 +11,18 @@ public class Database {
     private static Connection connection;
 
     public static void connect() {
+        if (connection != null) return;
         try {
             connection = DriverManager.getConnection(URL);
             System.out.println("Verbindung zur SQLite-Datenbank hergestellt.");
+
+            try (Statement pragma = connection.createStatement()) {
+                // Warte bis zu 5 Sekunden, falls die DB blockiert ist
+                pragma.execute("PRAGMA busy_timeout = 5000");
+                // Write-Ahead Logging für bessere Concurrency
+                pragma.execute("PRAGMA journal_mode = WAL");
+            }
+
             initializeDatabase();
         } catch (SQLException e) {
             System.err.println("Fehler beim Verbinden zur Datenbank: " + e.getMessage());
@@ -21,87 +30,101 @@ public class Database {
     }
 
     private static void initializeDatabase() {
+        String createUsers = """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE
+            );
+        """;
+        String createQuestions = """
+            CREATE TABLE IF NOT EXISTS questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                topic TEXT
+            );
+        """;
+        String createTopics = """
+            CREATE TABLE IF NOT EXISTS topics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            );
+        """;
+        String createWrong = """
+            CREATE TABLE IF NOT EXISTS user_wrong_answers (
+                user_id INTEGER NOT NULL,
+                question_id INTEGER NOT NULL,
+                wrong_count INTEGER DEFAULT 0,
+                PRIMARY KEY(user_id, question_id),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(question_id) REFERENCES questions(id) ON DELETE CASCADE
+            );
+        """;
+
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT NOT NULL UNIQUE
-                );
-            """);
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS questions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    question TEXT NOT NULL,
-                    answer TEXT NOT NULL,
-                    topic TEXT
-                );
-            """);
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS topics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE
-                );
-            """);
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS user_wrong_answers (
-                    user_id INTEGER NOT NULL,
-                    question_id INTEGER NOT NULL,
-                    wrong_count INTEGER DEFAULT 0,
-                    PRIMARY KEY(user_id, question_id),
-                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    FOREIGN KEY(question_id) REFERENCES questions(id) ON DELETE CASCADE
-                );
-            """);
+            stmt.execute(createUsers);
+            stmt.execute(createQuestions);
+            stmt.execute(createTopics);
+            stmt.execute(createWrong);
         } catch (SQLException e) {
             System.err.println("Fehler beim Initialisieren der Datenbank: " + e.getMessage());
         }
     }
 
-    public static void addOrUpdateUser(User user) {
-        try {
-            PreparedStatement insert = connection.prepareStatement(
-                    "INSERT INTO users (username) VALUES (?) ON CONFLICT(username) DO NOTHING");
-            insert.setString(1, user.getUsername());
-            insert.executeUpdate();
+    public static synchronized void addOrUpdateUser(User user) {
+        String insertUser = "INSERT INTO users (username) VALUES (?) ON CONFLICT(username) DO NOTHING";
+        String upsertWrong = """
+            INSERT INTO user_wrong_answers (user_id, question_id, wrong_count)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, question_id) DO UPDATE SET wrong_count = excluded.wrong_count
+        """;
 
+        try (PreparedStatement psUser = connection.prepareStatement(insertUser)) {
+            psUser.setString(1, user.getUsername());
+            psUser.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Fehler beim Hinzufügen/Aktualisieren des Nutzers: " + e.getMessage());
+            return;
+        }
+
+        try {
             int userId = getUserId(user.getUsername());
             if (userId == -1) return;
 
             for (Map.Entry<Integer, Integer> entry : user.getWrongQuestionCounts().entrySet()) {
-                PreparedStatement stmt = connection.prepareStatement(
-                        "INSERT INTO user_wrong_answers (user_id, question_id, wrong_count) " +
-                                "VALUES (?, ?, ?) ON CONFLICT(user_id, question_id) DO UPDATE SET wrong_count = excluded.wrong_count"
-                );
-                stmt.setInt(1, userId);
-                stmt.setInt(2, entry.getKey());
-                stmt.setInt(3, entry.getValue());
-                stmt.executeUpdate();
+                try (PreparedStatement psWrong = connection.prepareStatement(upsertWrong)) {
+                    psWrong.setInt(1, userId);
+                    psWrong.setInt(2, entry.getKey());
+                    psWrong.setInt(3, entry.getValue());
+                    psWrong.executeUpdate();
+                }
             }
         } catch (SQLException e) {
-            System.err.println("Fehler beim Hinzufügen/Aktualisieren des Nutzers: " + e.getMessage());
+            System.err.println("Fehler beim Speichern der falschen Antworten: " + e.getMessage());
         }
     }
 
     public static List<User> loadUsers() {
         List<User> users = new ArrayList<>();
-        try {
-            Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT * FROM users");
+        String sqlUsers = "SELECT id, username FROM users";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sqlUsers)) {
 
             while (rs.next()) {
                 int userId = rs.getInt("id");
                 String username = rs.getString("username");
                 User user = new User(username);
 
-                PreparedStatement wrongs = connection.prepareStatement(
-                        "SELECT question_id, wrong_count FROM user_wrong_answers WHERE user_id = ?");
-                wrongs.setInt(1, userId);
-                ResultSet wrs = wrongs.executeQuery();
-
-                while (wrs.next()) {
-                    int questionId = wrs.getInt("question_id");
-                    int count = wrs.getInt("wrong_count");
-                    user.getWrongQuestionCounts().put(questionId, count);
+                String sqlWrong = "SELECT question_id, wrong_count FROM user_wrong_answers WHERE user_id = ?";
+                try (PreparedStatement psWrong = connection.prepareStatement(sqlWrong)) {
+                    psWrong.setInt(1, userId);
+                    try (ResultSet wrs = psWrong.executeQuery()) {
+                        while (wrs.next()) {
+                            user.getWrongQuestionCounts()
+                                    .put(wrs.getInt("question_id"), wrs.getInt("wrong_count"));
+                        }
+                    }
                 }
 
                 users.add(user);
@@ -114,18 +137,19 @@ public class Database {
 
     public static List<Question> loadQuestions() {
         List<Question> questions = new ArrayList<>();
-        try {
-            Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT * FROM questions");
+        String sql = "SELECT id, question, answer, topic FROM questions";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                int id = rs.getInt("id");
-                String questionText = rs.getString("question");
-                String answer = rs.getString("answer");
-                String topic = rs.getString("topic");
-
-                Question question = new Question(id, questionText, answer, topic);
-                questions.add(question);
+                Question q = new Question(
+                        rs.getInt("id"),
+                        rs.getString("question"),
+                        rs.getString("answer"),
+                        rs.getString("topic")
+                );
+                questions.add(q);
             }
         } catch (SQLException e) {
             System.err.println("Fehler beim Laden der Fragen: " + e.getMessage());
@@ -133,26 +157,32 @@ public class Database {
         return questions;
     }
 
-    public static void addOrUpdateQuestion(Question question) {
-        try {
-            PreparedStatement stmt = connection.prepareStatement(
-                    "INSERT INTO questions (id, question, answer, topic) VALUES (?, ?, ?, ?) " +
-                            "ON CONFLICT(id) DO UPDATE SET question = excluded.question, answer = excluded.answer, topic = excluded.topic");
-            stmt.setInt(1, question.getQuestionId());
-            stmt.setString(2, question.getQuestionText());
-            stmt.setString(3, question.getAnswerAsCSV());
-            stmt.setString(4, question.getTopic());
-            stmt.executeUpdate();
+    public static synchronized void addOrUpdateQuestion(Question question) {
+        String sql = """
+            INSERT INTO questions (id, question, answer, topic)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE
+              SET question = excluded.question,
+                  answer   = excluded.answer,
+                  topic    = excluded.topic
+        """;
+
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, question.getQuestionId());
+            ps.setString(2, question.getQuestionText());
+            ps.setString(3, question.getAnswerAsCSV());
+            ps.setString(4, question.getTopic());
+            ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Hinzufügen/Aktualisieren der Frage: " + e.getMessage());
         }
     }
 
-    public static void deleteQuestion(int questionId) {
-        try {
-            PreparedStatement stmt = connection.prepareStatement("DELETE FROM questions WHERE id = ?");
-            stmt.setInt(1, questionId);
-            stmt.executeUpdate();
+    public static synchronized void deleteQuestion(int questionId) {
+        String sql = "DELETE FROM questions WHERE id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, questionId);
+            ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Löschen der Frage: " + e.getMessage());
         }
@@ -160,9 +190,10 @@ public class Database {
 
     public static List<String> loadTopics() {
         List<String> topics = new ArrayList<>();
-        try {
-            Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT name FROM topics ORDER BY name ASC");
+        String sql = "SELECT name FROM topics ORDER BY name ASC";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 topics.add(rs.getString("name"));
             }
@@ -172,46 +203,46 @@ public class Database {
         return topics;
     }
 
-    public static void addTopic(String topic) {
-        try {
-            PreparedStatement stmt = connection.prepareStatement(
-                    "INSERT INTO topics (name) VALUES (?) ON CONFLICT(name) DO NOTHING");
-            stmt.setString(1, topic);
-            stmt.executeUpdate();
+    public static synchronized void addTopic(String topic) {
+        String sql = "INSERT INTO topics (name) VALUES (?) ON CONFLICT(name) DO NOTHING";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, topic);
+            ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Hinzufügen des Themas: " + e.getMessage());
         }
     }
 
-    public static void deleteTopic(String topic) {
-        try {
-            PreparedStatement stmt = connection.prepareStatement("DELETE FROM topics WHERE name = ?");
-            stmt.setString(1, topic);
-            stmt.executeUpdate();
+    public static synchronized void deleteTopic(String topic) {
+        String sql = "DELETE FROM topics WHERE name = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, topic);
+            ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Löschen des Themas: " + e.getMessage());
         }
     }
 
     public static void disconnect() {
-        try {
-            if (connection != null) {
+        if (connection != null) {
+            try {
                 connection.close();
                 System.out.println("Datenbankverbindung geschlossen.");
+            } catch (SQLException e) {
+                System.err.println("Fehler beim Schließen der Verbindung: " + e.getMessage());
             }
-        } catch (SQLException e) {
-            System.err.println("Fehler beim Schließen der Verbindung: " + e.getMessage());
+            connection = null;
         }
     }
 
-    public static Connection getConnection() {
-        return connection;
-    }
-
     private static int getUserId(String username) throws SQLException {
-        PreparedStatement stmt = connection.prepareStatement("SELECT id FROM users WHERE username = ?");
-        stmt.setString(1, username);
-        ResultSet rs = stmt.executeQuery();
-        return rs.next() ? rs.getInt("id") : -1;
+        String sql = "SELECT id FROM users WHERE username = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("id") : -1;
+            }
+        }
     }
 }
+

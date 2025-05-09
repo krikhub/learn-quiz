@@ -4,6 +4,7 @@ import l.halbritter.Model.Question;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionListener;
 import java.util.List;
@@ -26,6 +27,10 @@ public class QuizUI {
     public JComboBox<String> existingUserCombo;
     public JComboBox<String> topicSelectionCombo;
     public JComboBox<String> difficultySelectionCombo;
+
+    public JList<String> userList;
+    public JButton newPlayerButton;
+    public JButton backToMainButton;
 
     public QuizUI() {
         frame = new JFrame("Quiz Anwendung");
@@ -104,7 +109,8 @@ public class QuizUI {
     }
 
     public void showEditQuizPanel(ActionListener createQuestionListener, ActionListener cancelListener, List<String> topics) {
-        frame.getContentPane().removeAll();
+        mainPanel.removeAll();
+        mainPanel.setLayout(new BorderLayout());
 
         JPanel panel = new JPanel(new GridLayout(12, 1, 5, 5));
         topicsCombo = new JComboBox<>(topics.toArray(new String[0]));
@@ -137,34 +143,80 @@ public class QuizUI {
         buttonPanel.add(createButton);
         buttonPanel.add(cancelButton);
 
-        frame.getContentPane().add(panel, BorderLayout.CENTER);
-        frame.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+        mainPanel.add(panel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         frame.revalidate();
         frame.repaint();
     }
 
-    public void showStartQuizPanel(ActionListener startQuizListener, ActionListener cancelListener, List<String> existingUsers, List<String> topics) {
-        frame.getContentPane().removeAll();
 
-        JPanel panel = new JPanel(new GridLayout(10, 1, 5, 5));
-        newUserField = new JTextField();
-        existingUserCombo = new JComboBox<>(existingUsers.toArray(new String[0]));
-        topicSelectionCombo = new JComboBox<>(topics.toArray(new String[0]));
+    public void showPlayerSelectionPanel(
+            ActionListener newPlayerListener,
+            ActionListener existingPlayerListener,
+            ActionListener cancelListener,
+            List<String> existingUsers
+    ) {
+        mainPanel.removeAll();
+        mainPanel.setLayout(new BorderLayout(10,10));
+
+        // 1) Liste der existierenden Spieler
+        userList = new JList<>(existingUsers.toArray(new String[0]));
+        userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane scroll = new JScrollPane(userList);
+
+        // Wenn in der Liste auf einen Eintrag geklickt wird:
+        userList.addListSelectionListener(evt -> {
+            if (!evt.getValueIsAdjusting()) {
+                String selected = userList.getSelectedValue();
+                // Feuer ein ActionEvent mit dem Spielernamen als command
+                existingPlayerListener.actionPerformed(
+                        new ActionEvent(this, ActionEvent.ACTION_PERFORMED, selected)
+                );
+            }
+        });
+
+        // 2) Button „Neuen Spieler anlegen“
+        newPlayerButton = new JButton("Neuen Spieler anlegen");
+        newPlayerButton.addActionListener(newPlayerListener);
+
+        // 3) „Zurück“-Button
+        backToMainButton = new JButton("Zurück");
+        backToMainButton.addActionListener(cancelListener);
+
+        // Layout
+        JPanel top = new JPanel(new BorderLayout(5,5));
+        top.add(newPlayerButton, BorderLayout.NORTH);
+        top.add(scroll, BorderLayout.CENTER);
+
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottom.add(backToMainButton);
+
+        mainPanel.add(top,    BorderLayout.CENTER);
+        mainPanel.add(bottom, BorderLayout.SOUTH);
+
+        frame.revalidate();
+        frame.repaint();
+    }
+
+
+    public void showQuizSelectionPanel(ActionListener startQuizListener,
+                                       ActionListener cancelListener,
+                                       List<String> topics) {
+        mainPanel.removeAll();
+        mainPanel.setLayout(new BorderLayout());
+
+        topicSelectionCombo      = new JComboBox<>(topics.toArray(new String[0]));
         difficultySelectionCombo = new JComboBox<>(new String[]{"1", "2", "3"});
 
-        panel.add(new JLabel("Neuen Benutzer anlegen:"));
-        panel.add(newUserField);
-        panel.add(new JLabel("Bestehenden Benutzer auswählen:"));
-        panel.add(existingUserCombo);
+        JPanel panel = new JPanel(new GridLayout(2, 2, 5, 5));
         panel.add(new JLabel("Thema auswählen:"));
         panel.add(topicSelectionCombo);
         panel.add(new JLabel("Schwierigkeit auswählen:"));
         panel.add(difficultySelectionCombo);
 
-        JButton startButton = new JButton("Quiz starten");
+        JButton startButton  = new JButton("Quiz starten");
         JButton cancelButton = new JButton("Abbrechen");
-
         startButton.addActionListener(startQuizListener);
         cancelButton.addActionListener(cancelListener);
 
@@ -172,8 +224,8 @@ public class QuizUI {
         buttonPanel.add(startButton);
         buttonPanel.add(cancelButton);
 
-        frame.getContentPane().add(panel, BorderLayout.CENTER);
-        frame.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+        mainPanel.add(panel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         frame.revalidate();
         frame.repaint();

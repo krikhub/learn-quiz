@@ -7,8 +7,10 @@ import l.halbritter.View.QuizUI;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.*;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class QuizController {
@@ -30,7 +32,7 @@ public class QuizController {
         view.showMainMenu(
                 e -> showQuestionsForEditing(),
                 e -> showPlayerSelection(),
-                e -> showUserSelectionForWorstQuestions(),  // <— neuer Listener
+                e -> showUserSelectionForWorstQuestions(),
                 e -> {
                     Database.disconnect();
                     System.exit(0);
@@ -38,7 +40,7 @@ public class QuizController {
         );
     }
 
-    /** 1) Zeige Nutzer-Auswahl nur für „schlechteste Fragen“ */
+    // 1) Auswahl für "10 schlechteste Fragen"
     private void showUserSelectionForWorstQuestions() {
         List<String> existingUsers = Database.loadUsers().stream()
                 .map(User::getUsername)
@@ -51,20 +53,18 @@ public class QuizController {
         );
     }
 
-    /** 2) Wenn ein Nutzer ausgewählt wurde, die 10 schlechtesten Fragen ermitteln und anzeigen */
     private void handleUserSelectedForWorstQuestions(ActionEvent e) {
         String username = e.getActionCommand();
-        // Nutzer mitsamt Wrong-Counts laden
         User user = Database.loadUsers().stream()
                 .filter(u -> u.getUsername().equals(username))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("User nicht gefunden"));
 
-        Map<Integer,Integer> counts = user.getWrongQuestionCounts();
+        Map<Integer, Integer> counts = user.getWrongQuestionCounts();
         if (counts.isEmpty()) {
             JOptionPane.showMessageDialog(
                     null,
-                    "Keine falsch beantworteten Fragen für „" + username + "“.",
+                    "Keine falsch beantworteten Fragen für ‚" + username + "‘.",
                     "Info",
                     JOptionPane.INFORMATION_MESSAGE
             );
@@ -72,16 +72,16 @@ public class QuizController {
             return;
         }
 
-        // alle Fragen laden und nach höchsten Wrong-Counts sortieren
         List<Question> questions = Database.loadQuestions();
-        List<Map.Entry<Integer,Integer>> topWorst = counts.entrySet().stream()
-                .sorted(Map.Entry.<Integer,Integer>comparingByValue().reversed())
+        List<Map.Entry<Integer, Integer>> topWorst = counts.entrySet().stream()
+                .sorted(Map.Entry.<Integer, Integer>comparingByValue().reversed())
                 .limit(10)
                 .toList();
 
-        StringBuilder sb = new StringBuilder("10 schlechteste Fragen für „" + username + "“:\n\n");
+        StringBuilder sb = new StringBuilder("10 schlechteste Fragen für ‚" + username + "‘:\n\n");
         for (var entry : topWorst) {
-            int qId = entry.getKey(), wrongCount = entry.getValue();
+            int qId = entry.getKey();
+            int wrongCount = entry.getValue();
             questions.stream()
                     .filter(q -> q.getQuestionId() == qId)
                     .findFirst()
@@ -101,25 +101,22 @@ public class QuizController {
         startApplication();
     }
 
+    // 2) Spieler-Auswahl vor Quiz
     private void showPlayerSelection() {
         List<String> existingUsers = Database.loadUsers().stream()
                 .map(User::getUsername)
                 .collect(Collectors.toList());
 
         view.showPlayerSelectionPanel(
-                /* newPlayerListener */      this::handleNewPlayer,
-                /* existingPlayerListener */ this::handleExistingPlayer,
-                /* cancelListener */         this::handleCancelToMain,
+                this::handleNewPlayer,
+                this::handleExistingPlayer,
+                this::handleCancelToMain,
                 existingUsers
         );
     }
 
-    // 2) Wenn „Neuen Spieler anlegen“ geklickt wird:
     private void handleNewPlayer(ActionEvent e) {
-        String name = JOptionPane.showInputDialog(
-                null,
-                "Bitte Namen des neuen Spielers eingeben:"
-        );
+        String name = JOptionPane.showInputDialog(null, "Bitte Namen des neuen Spielers eingeben:");
         if (name != null && !name.trim().isEmpty()) {
             currentUser = new User(name.trim());
             Database.addOrUpdateUser(currentUser);
@@ -127,7 +124,6 @@ public class QuizController {
         }
     }
 
-    // 3) Wenn in der Liste ein Spieler ausgewählt wird:
     private void handleExistingPlayer(ActionEvent e) {
         String selectedName = e.getActionCommand();
         currentUser = Database.loadUsers().stream()
@@ -137,26 +133,7 @@ public class QuizController {
         showQuizSelection();
     }
 
-
-    private void handlePlayerConfirmed(ActionEvent e) {
-        // Feldnamen angepasst
-        String newName = view.newUserField.getText().trim();
-        if (!newName.isEmpty()) {
-            currentUser = new User(newName);
-            Database.addOrUpdateUser(currentUser);
-        } else {
-            String sel = (String) view.existingUserCombo.getSelectedItem();
-            currentUser = Database.loadUsers().stream()
-                    .filter(u -> u.getUsername().equals(sel))
-                    .findFirst()
-                    .orElseThrow();
-        }
-        // weiter zur Quiz-Auswahl
-        showQuizSelection();
-    }
-
     private void handleCancelToMain(ActionEvent e) {
-        // zurück ins Hauptmenü
         startApplication();
     }
 
@@ -164,29 +141,25 @@ public class QuizController {
     private void showQuizSelection() {
         List<String> topics = Database.loadTopics();
         view.showQuizSelectionPanel(
-                /* Start */     this::handleBeginQuiz,
-                /* Abbrechen */ this::handleCancelToPlayerSelection,
+                this::handleBeginQuiz,
+                this::handleCancelToPlayerSelection,
                 topics
         );
     }
 
     private void handleCancelToPlayerSelection(ActionEvent e) {
-        // zurück zur Spieler-Auswahl
         showPlayerSelection();
     }
 
     // 4) Quiz starten
     private void handleBeginQuiz(ActionEvent e) {
-        String topic     = (String) view.topicSelectionCombo.getSelectedItem();
-        String diffStr   = (String) view.difficultySelectionCombo.getSelectedItem();
-        // Falls ihr Difficulty später verwenden wollt:
-        int difficulty   = Integer.parseInt(diffStr);
+        String topic = (String) view.topicSelectionCombo.getSelectedItem();
+        String diffStr = (String) view.difficultySelectionCombo.getSelectedItem();
+        int difficulty = Integer.parseInt(diffStr);
 
-        // Fragen nach Topic filtern
         currentQuestions = allQuestions.stream()
                 .filter(q -> topic.equals(q.getTopic()))
                 .collect(Collectors.toList());
-
         wrongQuestions = new ArrayList<>();
         askNextQuestion();
     }
@@ -227,18 +200,16 @@ public class QuizController {
             wrongQuestions.add(question);
             currentUser.addWrongAnswer(question);
         }
-
         askNextQuestion();
     }
 
-    // 5) Fragen bearbeiten (unverändert)
+    // 5) Fragen bearbeiten
     private void showQuestionsForEditing() {
         allQuestions = Database.loadQuestions();
         Map<String, List<Question>> questionsByTopic = allQuestions.stream()
                 .filter(q -> q.getTopic() != null)
                 .collect(Collectors.groupingBy(Question::getTopic));
 
-        // Hinzufügen / Löschen von Topics
         view.addTopicButton.addActionListener(evt -> {
             String newTopic = JOptionPane.showInputDialog(null, "Neues Thema eingeben:");
             if (newTopic != null && !newTopic.trim().isEmpty()) {
@@ -255,7 +226,6 @@ public class QuizController {
                 showQuestionsForEditing();
             }
         });
-
         view.showQuestionListPanel(
                 questionsByTopic,
                 this::handleEditQuestion,
@@ -273,7 +243,6 @@ public class QuizController {
                 .filter(q -> q.getQuestionId() == questionId)
                 .findFirst()
                 .orElse(null);
-
         if (questionToEdit != null) {
             List<String> topics = Database.loadTopics();
             view.showEditQuizPanel(
@@ -296,21 +265,17 @@ public class QuizController {
     }
 
     private void createOrUpdateQuestion(Question existingQuestion) {
-        String topic        = (String) view.topicsCombo.getSelectedItem();
-        String questionText = view.questionField.getText();
-        String[] answers    = new String[4];
-        for (int i = 0; i < 4; i++) {
-            answers[i] = view.answerFields[i].getText();
-        }
-        int correctAnswer   = view.correctAnswerCombo.getSelectedIndex();
+        String topic = (String) view.topicsCombo.getSelectedItem();
+        String text = view.questionField.getText();
+        String[] answers = new String[4];
+        for (int i = 0; i < 4; i++) answers[i] = view.answerFields[i].getText();
+        int correct = view.correctAnswerCombo.getSelectedIndex();
 
         Question question = existingQuestion != null ? existingQuestion : new Question();
-        if (existingQuestion == null) {
-            question.setQuestionId(new Random().nextInt(10_000));
-        }
-        question.setQuestionText(questionText);
+        if (existingQuestion == null) question.setQuestionId(new Random().nextInt(10_000));
+        question.setQuestionText(text);
         question.setAnswers(answers);
-        question.setCorrectAnswer(correctAnswer);
+        question.setCorrectAnswer(correct);
         question.setTopic(topic);
 
         Database.addOrUpdateQuestion(question);

@@ -41,7 +41,8 @@ public class Database {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 question TEXT NOT NULL,
                 answer TEXT NOT NULL,
-                topic TEXT
+                topic TEXT,
+                correct INTEGER NOT NULL DEFAULT 0
             );
         """;
         String createTopics = """
@@ -66,6 +67,12 @@ public class Database {
             stmt.execute(createQuestions);
             stmt.execute(createTopics);
             stmt.execute(createWrong);
+            // Falls bei bestehender DB die Spalte fehlt, hinzufügen
+            try {
+                stmt.execute("ALTER TABLE questions ADD COLUMN correct INTEGER NOT NULL DEFAULT 0");
+            } catch (SQLException ignore) {
+                // Spalte existiert bereits
+            }
         } catch (SQLException e) {
             System.err.println("Fehler beim Initialisieren der Datenbank: " + e.getMessage());
         }
@@ -121,8 +128,7 @@ public class Database {
                     psWrong.setInt(1, userId);
                     try (ResultSet wrs = psWrong.executeQuery()) {
                         while (wrs.next()) {
-                            user.getWrongQuestionCounts()
-                                    .put(wrs.getInt("question_id"), wrs.getInt("wrong_count"));
+                            user.getWrongQuestionCounts().put(wrs.getInt("question_id"), wrs.getInt("wrong_count"));
                         }
                     }
                 }
@@ -137,7 +143,7 @@ public class Database {
 
     public static List<Question> loadQuestions() {
         List<Question> questions = new ArrayList<>();
-        String sql = "SELECT id, question, answer, topic FROM questions";
+        String sql = "SELECT id, question, answer, topic, correct FROM questions";
 
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
@@ -146,8 +152,9 @@ public class Database {
                 Question q = new Question(
                         rs.getInt("id"),
                         rs.getString("question"),
-                        rs.getString("answer"),
-                        rs.getString("topic")
+                        rs.getString("answer"),             // CSV-String mit allen Antworten
+                        rs.getString("topic"),
+                        rs.getInt("correct")                // Index der richtigen Antwort
                 );
                 questions.add(q);
             }
@@ -159,12 +166,13 @@ public class Database {
 
     public static synchronized void addOrUpdateQuestion(Question question) {
         String sql = """
-            INSERT INTO questions (id, question, answer, topic)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO questions (id, question, answer, topic, correct)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE
               SET question = excluded.question,
                   answer   = excluded.answer,
-                  topic    = excluded.topic
+                  topic    = excluded.topic,
+                  correct  = excluded.correct
         """;
 
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
@@ -172,6 +180,7 @@ public class Database {
             ps.setString(2, question.getQuestionText());
             ps.setString(3, question.getAnswerAsCSV());
             ps.setString(4, question.getTopic());
+            ps.setInt(5, question.getCorrectAnswer());
             ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Hinzufügen/Aktualisieren der Frage: " + e.getMessage());
@@ -245,4 +254,3 @@ public class Database {
         }
     }
 }
-

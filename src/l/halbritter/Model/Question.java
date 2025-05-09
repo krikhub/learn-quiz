@@ -9,18 +9,40 @@ public class Question {
     private String topic;
     private int difficulty;
 
+    /**
+     * Default-Konstruktor
+     */
     public Question() {
+        this.difficulty = 1;
+        this.correctAnswer = 0;
     }
 
-    public Question(int questionId, String questionText, String answer, String topic) {
+    /**
+     * Konstruktor für das Laden aus der Datenbank
+     * @param questionId ID der Frage
+     * @param questionText Text der Frage
+     * @param answerCSV Antworten als |-separierter String
+     * @param topic Themenbereich
+     * @param correctAnswer Index der korrekten Antwort
+     */
+    public Question(int questionId, String questionText, String answerCSV, String topic, int correctAnswer) {
         this.questionId = questionId;
         this.questionText = questionText;
-        this.answers = answer.split("\\|");
-        this.correctAnswer = 0; // Standardmäßig erste Antwort korrekt
+        this.answers = answerCSV.split("\\|");
+        this.correctAnswer = correctAnswer;
         this.topic = topic;
         this.difficulty = 1;
     }
 
+    /**
+     * Vollständiger Konstruktor
+     * @param questionId      ID der Frage
+     * @param questionText    Text der Frage
+     * @param answers         Array mit vier Antworten
+     * @param correctAnswer   Index der korrekten Antwort
+     * @param topic           Themenbereich
+     * @param difficulty      Schwierigkeit (1-3)
+     */
     public Question(int questionId, String questionText, String[] answers, int correctAnswer, String topic, int difficulty) {
         this.questionId = questionId;
         this.questionText = questionText;
@@ -78,6 +100,9 @@ public class Question {
         this.difficulty = difficulty;
     }
 
+    /**
+     * Wandelt das Antwort-Array in einen |-separierten String um, zum Speichern in der DB
+     */
     public String getAnswerAsCSV() {
         return String.join("|", answers);
     }

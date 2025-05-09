@@ -243,6 +243,7 @@ public class QuizController {
                 .filter(q -> q.getQuestionId() == questionId)
                 .findFirst()
                 .orElse(null);
+
         if (questionToEdit != null) {
             List<String> topics = Database.loadTopics();
             view.showEditQuizPanel(
@@ -252,11 +253,18 @@ public class QuizController {
             );
             view.topicsCombo.setSelectedItem(questionToEdit.getTopic());
             view.questionField.setText(questionToEdit.getQuestionText());
+
             String[] answers = questionToEdit.getAnswers();
             for (int i = 0; i < 4; i++) {
                 view.answerFields[i].setText(answers[i]);
             }
+
             view.correctAnswerCombo.setSelectedIndex(questionToEdit.getCorrectAnswer());
+
+
+            view.difficultyCombo.setSelectedItem(
+                    String.valueOf(questionToEdit.getDifficulty())
+            );
         }
     }
 
@@ -265,24 +273,27 @@ public class QuizController {
     }
 
     private void createOrUpdateQuestion(Question existingQuestion) {
-        String topic = (String) view.topicsCombo.getSelectedItem();
-        String text = view.questionField.getText();
-        String[] answers = new String[4];
+        String topic        = (String) view.topicsCombo.getSelectedItem();
+        String questionText = view.questionField.getText();
+        String[] answers    = new String[4];
         for (int i = 0; i < 4; i++) answers[i] = view.answerFields[i].getText();
-        int correct = view.correctAnswerCombo.getSelectedIndex();
+        int correctAnswer   = view.correctAnswerCombo.getSelectedIndex();
+
+        int difficulty      = Integer.parseInt((String)view.difficultyCombo.getSelectedItem());
 
         Question question = existingQuestion != null ? existingQuestion : new Question();
         if (existingQuestion == null) question.setQuestionId(new Random().nextInt(10_000));
-        question.setQuestionText(text);
+        question.setQuestionText(questionText);
         question.setAnswers(answers);
-        question.setCorrectAnswer(correct);
+        question.setCorrectAnswer(correctAnswer);
         question.setTopic(topic);
+
+        question.setDifficulty(difficulty);
 
         Database.addOrUpdateQuestion(question);
         JOptionPane.showMessageDialog(null, "Frage wurde gespeichert!");
         startApplication();
     }
-
     private void handleCancelToQuestions(ActionEvent e) {
         showQuestionsForEditing();
     }

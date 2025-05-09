@@ -25,13 +25,13 @@ public class Question {
      * @param topic Themenbereich
      * @param correctAnswer Index der korrekten Antwort
      */
-    public Question(int questionId, String questionText, String answerCSV, String topic, int correctAnswer) {
-        this.questionId = questionId;
-        this.questionText = questionText;
-        this.answers = answerCSV.split("\\|");
-        this.correctAnswer = correctAnswer;
-        this.topic = topic;
-        this.difficulty = 1;
+    public Question(int questionId, String questionText, String answerCSV, String topic, int correctAnswer, int difficulty) {
+        this.questionId     = questionId;
+        this.questionText   = questionText;
+        this.answers        = answerCSV.split("\\|");
+        this.correctAnswer  = correctAnswer;
+        this.topic          = topic;
+        this.difficulty     = difficulty;
     }
 
     /**

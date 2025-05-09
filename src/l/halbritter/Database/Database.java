@@ -17,9 +17,7 @@ public class Database {
             System.out.println("Verbindung zur SQLite-Datenbank hergestellt.");
 
             try (Statement pragma = connection.createStatement()) {
-                // Warte bis zu 5 Sekunden, falls die DB blockiert ist
                 pragma.execute("PRAGMA busy_timeout = 5000");
-                // Write-Ahead Logging für bessere Concurrency
                 pragma.execute("PRAGMA journal_mode = WAL");
             }
 
@@ -39,10 +37,11 @@ public class Database {
         String createQuestions = """
             CREATE TABLE IF NOT EXISTS questions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                question TEXT NOT NULL,
-                answer TEXT NOT NULL,
-                topic TEXT,
-                correct INTEGER NOT NULL DEFAULT 0
+                question   TEXT NOT NULL,
+                answer     TEXT NOT NULL,
+                topic      TEXT,
+                correct    INTEGER NOT NULL DEFAULT 0,
+                difficulty INTEGER NOT NULL DEFAULT 1
             );
         """;
         String createTopics = """
@@ -67,12 +66,10 @@ public class Database {
             stmt.execute(createQuestions);
             stmt.execute(createTopics);
             stmt.execute(createWrong);
-            // Falls bei bestehender DB die Spalte fehlt, hinzufügen
+            // Spalte correct schon durch CREATE, nachträglich difficulty falls nötig
             try {
-                stmt.execute("ALTER TABLE questions ADD COLUMN correct INTEGER NOT NULL DEFAULT 0");
-            } catch (SQLException ignore) {
-                // Spalte existiert bereits
-            }
+                stmt.execute("ALTER TABLE questions ADD COLUMN difficulty INTEGER NOT NULL DEFAULT 1");
+            } catch (SQLException ignore) {}
         } catch (SQLException e) {
             System.err.println("Fehler beim Initialisieren der Datenbank: " + e.getMessage());
         }
@@ -97,8 +94,7 @@ public class Database {
         try {
             int userId = getUserId(user.getUsername());
             if (userId == -1) return;
-
-            for (Map.Entry<Integer, Integer> entry : user.getWrongQuestionCounts().entrySet()) {
+            for (var entry : user.getWrongQuestionCounts().entrySet()) {
                 try (PreparedStatement psWrong = connection.prepareStatement(upsertWrong)) {
                     psWrong.setInt(1, userId);
                     psWrong.setInt(2, entry.getKey());
@@ -114,15 +110,11 @@ public class Database {
     public static List<User> loadUsers() {
         List<User> users = new ArrayList<>();
         String sqlUsers = "SELECT id, username FROM users";
-
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(sqlUsers)) {
-
+        try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sqlUsers)) {
             while (rs.next()) {
                 int userId = rs.getInt("id");
                 String username = rs.getString("username");
                 User user = new User(username);
-
                 String sqlWrong = "SELECT question_id, wrong_count FROM user_wrong_answers WHERE user_id = ?";
                 try (PreparedStatement psWrong = connection.prepareStatement(sqlWrong)) {
                     psWrong.setInt(1, userId);
@@ -132,7 +124,6 @@ public class Database {
                         }
                     }
                 }
-
                 users.add(user);
             }
         } catch (SQLException e) {
@@ -143,18 +134,16 @@ public class Database {
 
     public static List<Question> loadQuestions() {
         List<Question> questions = new ArrayList<>();
-        String sql = "SELECT id, question, answer, topic, correct FROM questions";
-
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-
+        String sql = "SELECT id, question, answer, topic, correct, difficulty FROM questions";
+        try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 Question q = new Question(
                         rs.getInt("id"),
                         rs.getString("question"),
-                        rs.getString("answer"),             // CSV-String mit allen Antworten
+                        rs.getString("answer"),
                         rs.getString("topic"),
-                        rs.getInt("correct")                // Index der richtigen Antwort
+                        rs.getInt("correct"),
+                        rs.getInt("difficulty")
                 );
                 questions.add(q);
             }
@@ -166,21 +155,22 @@ public class Database {
 
     public static synchronized void addOrUpdateQuestion(Question question) {
         String sql = """
-            INSERT INTO questions (id, question, answer, topic, correct)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO questions (id, question, answer, topic, correct, difficulty)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE
-              SET question = excluded.question,
-                  answer   = excluded.answer,
-                  topic    = excluded.topic,
-                  correct  = excluded.correct
+              SET question   = excluded.question,
+                  answer     = excluded.answer,
+                  topic      = excluded.topic,
+                  correct    = excluded.correct,
+                  difficulty = excluded.difficulty
         """;
-
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setInt(1, question.getQuestionId());
             ps.setString(2, question.getQuestionText());
             ps.setString(3, question.getAnswerAsCSV());
             ps.setString(4, question.getTopic());
             ps.setInt(5, question.getCorrectAnswer());
+            ps.setInt(6, question.getDifficulty());
             ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Hinzufügen/Aktualisieren der Frage: " + e.getMessage());
@@ -200,12 +190,8 @@ public class Database {
     public static List<String> loadTopics() {
         List<String> topics = new ArrayList<>();
         String sql = "SELECT name FROM topics ORDER BY name ASC";
-
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) {
-                topics.add(rs.getString("name"));
-            }
+        try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) topics.add(rs.getString("name"));
         } catch (SQLException e) {
             System.err.println("Fehler beim Laden der Themen: " + e.getMessage());
         }

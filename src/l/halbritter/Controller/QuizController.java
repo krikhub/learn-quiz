@@ -25,18 +25,80 @@ public class QuizController {
 
     public void startApplication() {
         Database.connect();
-        // Alle Fragen einmal laden
         allQuestions = Database.loadQuestions();
 
-        // 1) Main Menu
         view.showMainMenu(
-                /* Fragen bearbeiten */      e -> showQuestionsForEditing(),
-                /* Quiz starten */           e -> showPlayerSelection(),
-                /* Exit */                   e -> {
+                e -> showQuestionsForEditing(),
+                e -> showPlayerSelection(),
+                e -> showUserSelectionForWorstQuestions(),  // <— neuer Listener
+                e -> {
                     Database.disconnect();
                     System.exit(0);
                 }
         );
+    }
+
+    /** 1) Zeige Nutzer-Auswahl nur für „schlechteste Fragen“ */
+    private void showUserSelectionForWorstQuestions() {
+        List<String> existingUsers = Database.loadUsers().stream()
+                .map(User::getUsername)
+                .collect(Collectors.toList());
+
+        view.showUserSelectionPanel(
+                this::handleUserSelectedForWorstQuestions,
+                this::handleCancelToMain,
+                existingUsers
+        );
+    }
+
+    /** 2) Wenn ein Nutzer ausgewählt wurde, die 10 schlechtesten Fragen ermitteln und anzeigen */
+    private void handleUserSelectedForWorstQuestions(ActionEvent e) {
+        String username = e.getActionCommand();
+        // Nutzer mitsamt Wrong-Counts laden
+        User user = Database.loadUsers().stream()
+                .filter(u -> u.getUsername().equals(username))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("User nicht gefunden"));
+
+        Map<Integer,Integer> counts = user.getWrongQuestionCounts();
+        if (counts.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Keine falsch beantworteten Fragen für „" + username + "“.",
+                    "Info",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+            startApplication();
+            return;
+        }
+
+        // alle Fragen laden und nach höchsten Wrong-Counts sortieren
+        List<Question> questions = Database.loadQuestions();
+        List<Map.Entry<Integer,Integer>> topWorst = counts.entrySet().stream()
+                .sorted(Map.Entry.<Integer,Integer>comparingByValue().reversed())
+                .limit(10)
+                .toList();
+
+        StringBuilder sb = new StringBuilder("10 schlechteste Fragen für „" + username + "“:\n\n");
+        for (var entry : topWorst) {
+            int qId = entry.getKey(), wrongCount = entry.getValue();
+            questions.stream()
+                    .filter(q -> q.getQuestionId() == qId)
+                    .findFirst()
+                    .ifPresent(q -> sb.append("- ")
+                            .append(q.getQuestionText())
+                            .append("  (falsch: ")
+                            .append(wrongCount)
+                            .append("x)\n"));
+        }
+
+        JOptionPane.showMessageDialog(
+                null,
+                sb.toString(),
+                "Schlechteste Fragen",
+                JOptionPane.INFORMATION_MESSAGE
+        );
+        startApplication();
     }
 
     private void showPlayerSelection() {

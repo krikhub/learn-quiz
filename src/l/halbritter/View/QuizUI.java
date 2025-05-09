@@ -37,32 +37,73 @@ public class QuizUI {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(600, 600);
         frame.setLocationRelativeTo(null);
+
         mainPanel = new JPanel(new BorderLayout());
         frame.getContentPane().add(mainPanel);
+
+        // erst hier sichtbar machen!
+        frame.setVisible(true);
     }
 
-    public void showMainMenu(ActionListener editQuizListener, ActionListener startQuizListener, ActionListener exitListener) {
+    public void showMainMenu(
+            ActionListener editListener,
+            ActionListener startQuizListener,
+            ActionListener showWorstListener,
+            ActionListener exitListener
+    ) {
         mainPanel.removeAll();
+        mainPanel.setLayout(new GridLayout(4, 1, 5, 5));
 
-        JPanel buttonPanel = new JPanel(new GridLayout(3, 1, 10, 10));
+        JButton editBtn   = new JButton("Fragen bearbeiten");
+        JButton startBtn  = new JButton("Quiz starten");
+        JButton worstBtn  = new JButton("10 schlechteste Fragen");
+        JButton exitBtn   = new JButton("Beenden");
 
-        JButton editQuizButton = new JButton("1. Quiz bearbeiten");
-        JButton startQuizButton = new JButton("2. Quiz starten");
-        JButton exitButton = new JButton("3. Beenden");
+        editBtn.addActionListener(editListener);
+        startBtn.addActionListener(startQuizListener);
+        worstBtn.addActionListener(showWorstListener);
+        exitBtn.addActionListener(exitListener);
 
-        editQuizButton.addActionListener(editQuizListener);
-        startQuizButton.addActionListener(startQuizListener);
-        exitButton.addActionListener(exitListener);
-
-        buttonPanel.add(editQuizButton);
-        buttonPanel.add(startQuizButton);
-        buttonPanel.add(exitButton);
-
-        mainPanel.add(buttonPanel, BorderLayout.CENTER);
+        mainPanel.add(editBtn);
+        mainPanel.add(startBtn);
+        mainPanel.add(worstBtn);
+        mainPanel.add(exitBtn);
 
         frame.revalidate();
         frame.repaint();
-        frame.setVisible(true);
+    }
+
+    /** 2) Panel, um einen bestehenden Nutzer auszuwählen **/
+    public void showUserSelectionPanel(
+            ActionListener userSelectedListener,
+            ActionListener cancelListener,
+            List<String> existingUsers
+    ) {
+        mainPanel.removeAll();
+        mainPanel.setLayout(new BorderLayout(5,5));
+
+        userList = new JList<>(existingUsers.toArray(new String[0]));
+        userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane scroll = new JScrollPane(userList);
+
+        // wenn ein Eintrag ausgewählt wird, feuern wir das Event
+        userList.addListSelectionListener(evt -> {
+            if (!evt.getValueIsAdjusting()) {
+                String selected = userList.getSelectedValue();
+                userSelectedListener.actionPerformed(
+                        new ActionEvent(this, ActionEvent.ACTION_PERFORMED, selected)
+                );
+            }
+        });
+
+        backToMainButton = new JButton("Zurück");
+        backToMainButton.addActionListener(cancelListener);
+
+        mainPanel.add(scroll, BorderLayout.CENTER);
+        mainPanel.add(backToMainButton, BorderLayout.SOUTH);
+
+        frame.revalidate();
+        frame.repaint();
     }
 
     public void showQuestionListPanel(Map<String, List<Question>> questionsByTopic,

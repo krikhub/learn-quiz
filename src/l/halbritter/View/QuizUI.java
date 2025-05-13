@@ -154,7 +154,16 @@ public class QuizUI {
         JLabel title = new JLabel("Spieler auswählen oder neu anlegen");
         title.setFont(titleFont);
         title.setBorder(new EmptyBorder(0, 0, 10, 0));
-        panel.add(title, BorderLayout.NORTH);
+        JPanel northPanel = new JPanel();
+        northPanel.setLayout(new BoxLayout(northPanel, BoxLayout.Y_AXIS));
+        northPanel.add(title);
+
+        JLabel instructionLabel = new JLabel("Doppelklick auf Nutzer oder neuen erstellen, um Quiz zu starten");
+        instructionLabel.setFont(buttonFont);
+        instructionLabel.setBorder(new EmptyBorder(0, 0, 10, 0));
+        northPanel.add(instructionLabel);
+
+        panel.add(northPanel, BorderLayout.NORTH);
 
         userList = new JList<>(existingUsers.toArray(new String[0]));
         userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -407,8 +416,10 @@ public class QuizUI {
         switchTo("quizSelect");
     }
 
+
     private void switchTo(String name) {
         CardLayout cl = (CardLayout) mainPanel.getLayout();
         cl.show(mainPanel, name);
     }
+
 }

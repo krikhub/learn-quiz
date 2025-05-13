@@ -6,6 +6,7 @@ import l.halbritter.Model.User;
 import l.halbritter.View.QuizUI;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.*;
@@ -203,6 +204,40 @@ public class QuizController {
         }
     }
 
+    private String showQuestionDialog(Question question) {
+        // Modal-Dialog
+        JDialog dialog = new JDialog((Frame) null, "Quiz", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+
+        // Oben die Frage
+        JLabel lblQuestion = new JLabel("<html><body style='width:300px'>" + question.getQuestionText() + "</body></html>");
+        lblQuestion.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
+        dialog.add(lblQuestion, BorderLayout.NORTH);
+
+        // Buttons im 2×2-Grid
+        JPanel buttonPanel = new JPanel(new GridLayout(2, 2, 10, 10));
+        String[] answers = question.getAnswers();
+        // Holder für die gewählte Antwort
+        final String[] selected = { null };
+
+        for (String ans : answers) {
+            JButton btn = new JButton(ans);
+            btn.addActionListener(e -> {
+                selected[0] = ans;
+                dialog.dispose();
+            });
+            buttonPanel.add(btn);
+        }
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
+        dialog.add(buttonPanel, BorderLayout.CENTER);
+
+        dialog.pack();
+        dialog.setLocationRelativeTo(null);
+        dialog.setVisible(true);
+
+        return selected[0];
+    }
+
     private void askNextQuestion() {
         if (currentQuestions.isEmpty()) {
             if (!wrongQuestions.isEmpty()) {
@@ -219,15 +254,7 @@ public class QuizController {
         }
 
         Question question = currentQuestions.remove(0);
-        String userAnswer = (String) JOptionPane.showInputDialog(
-                null,
-                question.getQuestionText(),
-                "Quiz",
-                JOptionPane.QUESTION_MESSAGE,
-                null,
-                question.getAnswers(),
-                question.getAnswers()[0]
-        );
+        String userAnswer = showQuestionDialog(question);
 
         if (userAnswer != null && userAnswer.equals(question.getAnswers()[question.getCorrectAnswer()])) {
             JOptionPane.showMessageDialog(null, "Richtig!");

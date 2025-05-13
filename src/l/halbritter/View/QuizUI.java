@@ -10,6 +10,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.Map;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class QuizUI {
     private JFrame frame;
@@ -18,6 +20,8 @@ public class QuizUI {
     // Shared components
     public JButton addTopicButton = new JButton("Thema hinzufügen");
     public JButton deleteTopicButton = new JButton("Thema löschen");
+    public JButton deletePlayerButton;
+
 
     public JComboBox<String> topicsCombo;
     public JTextField questionField;
@@ -138,6 +142,7 @@ public class QuizUI {
     public void showPlayerSelectionPanel(
             ActionListener newPlayerListener,
             ActionListener existingPlayerListener,
+            ActionListener deletePlayerListener,
             ActionListener cancelListener,
             List<String> existingUsers
     ) {
@@ -153,20 +158,38 @@ public class QuizUI {
         userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         userList.setFont(buttonFont);
         JScrollPane scroll = new JScrollPane(userList);
-        scroll.setBorder(new TitledBorder("Existierende Spieler"));
-
-        userList.addListSelectionListener(evt -> {
-            if (!evt.getValueIsAdjusting()) {
-                String selected = userList.getSelectedValue();
-                existingPlayerListener.actionPerformed(
-                        new ActionEvent(this, ActionEvent.ACTION_PERFORMED, selected)
-                );
+        userList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                // nur bei echtem Doppelklick reagieren
+                if (e.getClickCount() == 2 && !e.isConsumed()) {
+                    e.consume();  // weiter Doppelerkennung unterbinden
+                    // aktuelles Element auslesen
+                    String selected = userList.getSelectedValue();
+                    if (selected != null) {
+                        // genau so, wie der ListSelectionListener vorher, das
+                        // ActionEvent an den Controller schicken:
+                        existingPlayerListener.actionPerformed(
+                                new ActionEvent(
+                                        this,
+                                        ActionEvent.ACTION_PERFORMED,
+                                        selected
+                                )
+                        );
+                    }
+                }
             }
         });
+
+        scroll.setBorder(new TitledBorder("Existierende Spieler"));
 
         newPlayerButton = new JButton("Neuen Spieler anlegen");
         configureButton(newPlayerButton);
         newPlayerButton.addActionListener(newPlayerListener);
+
+        deletePlayerButton = new JButton("Spieler löschen");
+        configureButton(deletePlayerButton);
+        deletePlayerButton.addActionListener(deletePlayerListener);
 
         backToMainButton = new JButton("Zurück");
         configureButton(backToMainButton);
@@ -174,6 +197,7 @@ public class QuizUI {
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         south.add(newPlayerButton);
+        south.add(deletePlayerButton);
         south.add(backToMainButton);
 
         panel.add(scroll, BorderLayout.CENTER);
@@ -241,6 +265,7 @@ public class QuizUI {
 
     /** Frage erstellen/bearbeiten **/
     public void showEditQuizPanel(ActionListener saveListener,
+                                  ActionListener deleteListener,
                                   ActionListener cancelListener,
                                   List<String> topics) {
         JPanel panel = new JPanel(new GridBagLayout());
@@ -288,16 +313,30 @@ public class QuizUI {
         panel.add(correctAnswerCombo, gbc);
 
         // Buttons
-        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.CENTER;
+         gbc.gridx = 0; gbc.gridy = GridBagConstraints.RELATIVE;
+         gbc.gridwidth = 2;
+
+        // Button-Panel: Speichern, ggf. Frage löschen, Abbrechen
         JPanel btnPanel = new JPanel();
-        JButton saveBtn = new JButton("Speichern");
-        JButton cancelBtn2 = new JButton("Abbrechen");
+
+        JButton saveBtn   = new JButton("Speichern");
         configureButton(saveBtn);
-        configureButton(cancelBtn2);
         saveBtn.addActionListener(saveListener);
-        cancelBtn2.addActionListener(cancelListener);
         btnPanel.add(saveBtn);
-        btnPanel.add(cancelBtn2);
+
+        // <<< NUR HINZUFÜGEN, wenn ein deleteListener da ist >>>
+        if (deleteListener != null) {
+            JButton deleteBtn = new JButton("Frage löschen");
+            configureButton(deleteBtn);
+            deleteBtn.addActionListener(deleteListener);
+            btnPanel.add(deleteBtn);
+        }
+
+        JButton cancelBtn = new JButton("Abbrechen");
+        configureButton(cancelBtn);
+        cancelBtn.addActionListener(cancelListener);
+        btnPanel.add(cancelBtn);
+
         panel.add(btnPanel, gbc);
 
         mainPanel.add(panel, "editQuiz");

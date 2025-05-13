@@ -209,12 +209,70 @@ public class Database {
     }
 
     public static synchronized void deleteTopic(String topic) {
-        String sql = "DELETE FROM topics WHERE name = ?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, topic);
-            ps.executeUpdate();
+        String deleteQuestionsSql = "DELETE FROM questions WHERE topic = ?";
+        String deleteTopicSql     = "DELETE FROM topics WHERE name = ?";
+
+        try {
+            // Transaktion starten
+            connection.setAutoCommit(false);
+
+            // 1) Alle Fragen zum Topic löschen
+            try (PreparedStatement ps1 = connection.prepareStatement(deleteQuestionsSql)) {
+                ps1.setString(1, topic);
+                ps1.executeUpdate();
+            }
+
+            // 2) Danach das Topic selbst löschen
+            try (PreparedStatement ps2 = connection.prepareStatement(deleteTopicSql)) {
+                ps2.setString(1, topic);
+                ps2.executeUpdate();
+            }
+
+            // Wenn alles ok, Commit
+            connection.commit();
         } catch (SQLException e) {
-            System.err.println("Fehler beim Löschen des Themas: " + e.getMessage());
+            try {
+                connection.rollback();
+            } catch (SQLException ex) {
+                System.err.println("Rollback fehlgeschlagen: " + ex.getMessage());
+            }
+            System.err.println("Fehler beim Löschen des Themas inkl. Fragen: " + e.getMessage());
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.err.println("Fehler beim Zurücksetzen von AutoCommit: " + e.getMessage());
+            }
+        }
+    }
+
+    public static synchronized void deleteUser(String username) {
+        try {
+            // 1) Transaktion beginnen
+            connection.setAutoCommit(false);
+
+            // 2) zuerst alle falschen Antworten / user_wrong_answers löschen
+            String sqlWrong = "DELETE FROM user_wrong_answers WHERE user_id = ?";
+            try (PreparedStatement ps = connection.prepareStatement(sqlWrong)) {
+                int userId = getUserId(username);
+                ps.setInt(1, userId);
+                ps.executeUpdate();
+            }
+
+            // 3) dann den User selbst löschen
+            String sqlUser = "DELETE FROM users WHERE username = ?";
+            try (PreparedStatement ps = connection.prepareStatement(sqlUser)) {
+                ps.setString(1, username);
+                ps.executeUpdate();
+            }
+
+            // 4) Commit oder Rollback
+            connection.commit();
+        } catch (SQLException e) {
+            try { connection.rollback(); } catch (SQLException ex) { /* log rollback-Fehler */ }
+            throw new RuntimeException("Fehler beim Löschen des Users: " + e.getMessage(), e);
+        } finally {
+            try { connection.setAutoCommit(true); } catch (SQLException ex) { /* log */ }
         }
     }
 

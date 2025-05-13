@@ -110,9 +110,25 @@ public class QuizController {
         view.showPlayerSelectionPanel(
                 this::handleNewPlayer,
                 this::handleExistingPlayer,
+                this::handleDeletePlayer,     // neu!
                 this::handleCancelToMain,
                 existingUsers
         );
+    }
+
+    private void handleDeleteQuestion(Question questionToDelete) {
+        int ans = JOptionPane.showConfirmDialog(
+                null,
+                "Soll die Frage wirklich gelöscht werden?\n\""
+                        + questionToDelete.getQuestionText() + "\"",
+                "Frage löschen",
+                JOptionPane.YES_NO_OPTION
+        );
+        if (ans == JOptionPane.YES_OPTION) {
+            Database.deleteQuestion(questionToDelete.getQuestionId());
+            JOptionPane.showMessageDialog(null, "Frage wurde gelöscht!");
+            showQuestionsForEditing();
+        }
     }
 
     private void handleNewPlayer(ActionEvent e) {
@@ -153,15 +169,57 @@ public class QuizController {
 
     // 4) Quiz starten
     private void handleBeginQuiz(ActionEvent e) {
+        // 1) Thema und Schwierigkeit aus der UI auslesen
         String topic = (String) view.topicSelectionCombo.getSelectedItem();
         String diffStr = (String) view.difficultySelectionCombo.getSelectedItem();
         int difficulty = Integer.parseInt(diffStr);
 
+        // 2) Fragen filtern nach Thema UND Schwierigkeit
         currentQuestions = allQuestions.stream()
-                .filter(q -> topic.equals(q.getTopic()))
+                .filter(q -> topic.equals(q.getTopic()) && q.getDifficulty() == difficulty)
                 .collect(Collectors.toList());
+
+        // 3) OPTIONALE LÖSUNG: Abfangen, wenn gar keine Fragen übrigbleiben
+        if (currentQuestions.isEmpty()) {
+            // Hinweis-Dialog
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Keine Fragen für Thema „" + topic + "“ …",
+                    "Keine Fragen",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            // Quiz-Auswahl wieder anzeigen (wenn du eine eigene Methode dafür hast)
+            showQuizSelection();
+            return;  // Methode hier beenden, Quiz startet nicht
+        }
+
+        // 4) Sonst Quiz normal starten
         wrongQuestions = new ArrayList<>();
         askNextQuestion();
+    }
+
+    private void handleDeletePlayer(ActionEvent e) {
+        String name = view.userList.getSelectedValue();
+        if (name == null) {
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Bitte zuerst einen Spieler aus der Liste auswählen.",
+                    "Kein Spieler ausgewählt",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+        int ans = JOptionPane.showConfirmDialog(
+                null,
+                "Soll Spieler \"" + name + "\" wirklich gelöscht werden?\nAlle statistischen Daten gehen verloren.",
+                "Spieler löschen",
+                JOptionPane.YES_NO_OPTION
+        );
+        if (ans == JOptionPane.YES_OPTION) {
+            Database.deleteUser(name);
+            JOptionPane.showMessageDialog(null, "Spieler \"" + name + "\" wurde gelöscht.");
+            showPlayerSelection();
+        }
     }
 
     private void askNextQuestion() {
@@ -219,19 +277,38 @@ public class QuizController {
             }
         });
         view.deleteTopicButton.addActionListener(evt -> {
-            String topicToDelete = JOptionPane.showInputDialog(null, "Thema zum Löschen eingeben:");
-            if (topicToDelete != null && !topicToDelete.trim().isEmpty()) {
-                Database.deleteTopic(topicToDelete.trim());
-                JOptionPane.showMessageDialog(null, "Thema gelöscht!");
-                showQuestionsForEditing();
-            }
+           List<String> topics = Database.loadTopics();
+           if (topics.isEmpty()) {
+               JOptionPane.showMessageDialog(null, "Keine Themen zum Löschen vorhanden!");
+               return;
+           }
+           String[] options = topics.toArray(new String[0]);
+           String topicToDelete = (String) JOptionPane.showInputDialog(
+                       null,
+                       "Thema zum Löschen auswählen:",
+                       "Thema löschen",
+                       JOptionPane.QUESTION_MESSAGE,
+                       null,
+                       options,
+                       options[0]
+                       );
+           if (topicToDelete != null) {
+               Database.deleteTopic(topicToDelete);
+               JOptionPane.showMessageDialog(null, "Thema „" + topicToDelete + "“ gelöscht!");
+               showQuestionsForEditing();
+           }
         });
         view.showQuestionListPanel(
                 questionsByTopic,
                 this::handleEditQuestion,
                 e -> {
                     List<String> topics = Database.loadTopics();
-                    view.showEditQuizPanel(this::handleCreateQuestion, this::handleCancelToQuestions, topics);
+                    view.showEditQuizPanel(
+                            this::handleCreateQuestion,
+                            /*deleteListener=*/ null,
+                            this::handleCancelToQuestions,
+                            topics
+                    );
                 },
                 this::handleCancelToMain
         );
@@ -247,8 +324,13 @@ public class QuizController {
         if (questionToEdit != null) {
             List<String> topics = Database.loadTopics();
             view.showEditQuizPanel(
+                    // 1) Speichern der Änderungen
                     evt -> createOrUpdateQuestion(questionToEdit),
+                    // 2) Löschen der Frage
+                    evt -> handleDeleteQuestion(questionToEdit),
+                    // 3) Abbrechen
                     this::handleCancelToQuestions,
+                    // 4) verfügbare Themen
                     topics
             );
             view.topicsCombo.setSelectedItem(questionToEdit.getTopic());

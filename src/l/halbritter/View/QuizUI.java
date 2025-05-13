@@ -17,12 +17,10 @@ public class QuizUI {
     private JFrame frame;
     private JPanel mainPanel;
 
-    // Shared components
+    // Shared components für Controller-Zugriff
     public JButton addTopicButton = new JButton("Thema hinzufügen");
     public JButton deleteTopicButton = new JButton("Thema löschen");
     public JButton deletePlayerButton;
-
-
     public JComboBox<String> topicsCombo;
     public JTextField questionField;
     public JTextField[] answerFields;
@@ -48,18 +46,22 @@ public class QuizUI {
 
         frame = new JFrame("Quiz Anwendung");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        // Empfohlene Grundgröße
         frame.setSize(900, 700);
         frame.setLocationRelativeTo(null);
 
         mainPanel = new JPanel(new CardLayout());
-        mainPanel.setBorder(new EmptyBorder(panelInsets));
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
         frame.setContentPane(mainPanel);
         frame.setVisible(true);
     }
 
+    /** Neuer Getter für Parent bei Dialogen **/
+    public JFrame getFrame() {
+        return frame;
+    }
+
     private void configureButton(JButton btn) {
-        btn.setFont(buttonFont);
+        btn.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 16));
         btn.setFocusPainted(false);
         btn.setMargin(new Insets(8, 16, 8, 16));
     }
@@ -208,59 +210,77 @@ public class QuizUI {
     }
 
     /** Fragen nach Thema listen **/
-    public void showQuestionListPanel(Map<String, List<Question>> questionsByTopic,
-                                      ActionListener editQuestionListener,
-                                      ActionListener newQuestionListener,
-                                      ActionListener cancelListener) {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBorder(new EmptyBorder(panelInsets));
+    public void showQuestionListPanel(
+            Map<String, List<Question>> questionsByTopic,
+            ActionListener editListener,
+            ActionListener createListener,
+            ActionListener cancelListener
+    ) {
+        // 1) Hauptpanel mit Innenabstand und Lücken
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-        JPanel listPanel = new JPanel();
-        listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
-
-        for (String topic : questionsByTopic.keySet()) {
-            JLabel topicLabel = new JLabel(topic);
-            topicLabel.setFont(buttonFont.deriveFont(Font.BOLD, 18f));
-            topicLabel.setBorder(new EmptyBorder(5, 0, 5, 0));
-            listPanel.add(topicLabel);
-            for (Question q : questionsByTopic.get(topic)) {
-                JButton qBtn = new JButton(q.getQuestionText());
-                configureButton(qBtn);
-                qBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-                qBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-                qBtn.setActionCommand(String.valueOf(q.getQuestionId()));
-                qBtn.addActionListener(editQuestionListener);
-                listPanel.add(qBtn);
-                listPanel.add(Box.createVerticalStrut(5));
-            }
-            listPanel.add(Box.createVerticalStrut(10));
-        }
-
-        JScrollPane scrollPane = new JScrollPane(listPanel);
-        scrollPane.setBorder(new TitledBorder("Fragenübersicht"));
-
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-
-        JButton newBtn = new JButton("Neue Frage erstellen");
-        configureButton(newBtn);
-        newBtn.addActionListener(newQuestionListener);
-        bottom.add(newBtn);
-
+        // 2) Top: Toolbar statt einfachem Button-Panel
+        JToolBar toolBar = new JToolBar();
+        toolBar.setFloatable(false);
         configureButton(addTopicButton);
-        bottom.add(addTopicButton);
         configureButton(deleteTopicButton);
-        bottom.add(deleteTopicButton);
+        toolBar.add(addTopicButton);
+        toolBar.addSeparator(new Dimension(10, 0));
+        toolBar.add(deleteTopicButton);
+        panel.add(toolBar, BorderLayout.NORTH);
 
-        JButton backBtn = new JButton("Zurück");
-        configureButton(backBtn);
-        backBtn.addActionListener(cancelListener);
-        bottom.add(backBtn);
+        // 3) Mitte: JTabbedPane pro Thema für übersichtliche Tabs
+        JTabbedPane tabbedPane = new JTabbedPane();
+        for (String topic : questionsByTopic.keySet()) {
+            List<Question> qs = questionsByTopic.get(topic);
 
-        panel.add(scrollPane, BorderLayout.CENTER);
-        panel.add(bottom, BorderLayout.SOUTH);
+            // Panel mit vertikalem Abstand zwischen den Buttons
+            JPanel topicPanel = new JPanel();
+            topicPanel.setLayout(new BoxLayout(topicPanel, BoxLayout.Y_AXIS));
+            topicPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+            for (Question q : qs) {
+                JButton btn = new JButton(q.getQuestionText());
+                configureButton(btn);
+                btn.setAlignmentX(Component.LEFT_ALIGNMENT);
+                btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, btn.getPreferredSize().height));
+                btn.setActionCommand(String.valueOf(q.getQuestionId()));
+                btn.addActionListener(editListener);
+                topicPanel.add(btn);
+                topicPanel.add(Box.createRigidArea(new Dimension(0,5)));
+            }
+
+            JScrollPane scroll = new JScrollPane(topicPanel,
+                    JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                    JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+            tabbedPane.addTab(topic, scroll);
+        }
+        panel.add(tabbedPane, BorderLayout.CENTER);
+
+        // 4) Bottom: FlowLayout rechtsbündig, mit einheitlichem Button-Look
+        JPanel bottomBtnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        JButton newQuestionBtn = new JButton("Neue Frage");
+        configureButton(newQuestionBtn);
+        if (createListener != null) {
+            newQuestionBtn.addActionListener(createListener);
+            newQuestionBtn.setEnabled(true);
+        } else {
+            newQuestionBtn.setEnabled(false);
+        }
+        bottomBtnPanel.add(newQuestionBtn);
+
+        JButton cancelBtn = new JButton("Zurück");
+        configureButton(cancelBtn);
+        cancelBtn.addActionListener(cancelListener);
+        bottomBtnPanel.add(cancelBtn);
+
+        panel.add(bottomBtnPanel, BorderLayout.SOUTH);
+
+        // 5) Panel ins CardLayout einfügen
         mainPanel.add(panel, "questionList");
-        switchTo("questionList");
+        CardLayout cl = (CardLayout) mainPanel.getLayout();
+        cl.show(mainPanel, "questionList");
     }
 
     /** Frage erstellen/bearbeiten **/
@@ -269,7 +289,7 @@ public class QuizUI {
                                   ActionListener cancelListener,
                                   List<String> topics) {
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(new EmptyBorder(panelInsets));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(5, 5, 5, 5);
@@ -278,6 +298,7 @@ public class QuizUI {
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Thema:"), gbc);
         topicsCombo = new JComboBox<>(topics.toArray(new String[0]));
+        topicsCombo.setToolTipText("Thema auswählen");
         gbc.gridx = 1; gbc.gridy = 0;
         panel.add(topicsCombo, gbc);
 
@@ -285,6 +306,7 @@ public class QuizUI {
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Frage:"), gbc);
         questionField = new JTextField();
+        questionField.setToolTipText("Hier Frage eingeben…");
         gbc.gridx = 1; gbc.gridy = 1;
         panel.add(questionField, gbc);
 
@@ -294,6 +316,7 @@ public class QuizUI {
             gbc.gridx = 0; gbc.gridy = 2 + i;
             panel.add(new JLabel("Antwort " + (i + 1) + ":"), gbc);
             answerFields[i] = new JTextField();
+            answerFields[i].setToolTipText("Antwort " + (i + 1) + " eingeben");
             gbc.gridx = 1; gbc.gridy = 2 + i;
             panel.add(answerFields[i], gbc);
         }
@@ -302,6 +325,7 @@ public class QuizUI {
         gbc.gridx = 0; gbc.gridy = 6;
         panel.add(new JLabel("Schwierigkeit:"), gbc);
         difficultyCombo = new JComboBox<>(new String[]{"1", "2", "3"});
+        difficultyCombo.setToolTipText("Schwierigkeit auswählen");
         gbc.gridx = 1; gbc.gridy = 6;
         panel.add(difficultyCombo, gbc);
 
@@ -309,22 +333,20 @@ public class QuizUI {
         gbc.gridx = 0; gbc.gridy = 7;
         panel.add(new JLabel("Richtige Antwort:"), gbc);
         correctAnswerCombo = new JComboBox<>(new String[]{"1", "2", "3", "4"});
+        correctAnswerCombo.setToolTipText("Richtige Antwort auswählen");
         gbc.gridx = 1; gbc.gridy = 7;
         panel.add(correctAnswerCombo, gbc);
 
         // Buttons
-         gbc.gridx = 0; gbc.gridy = GridBagConstraints.RELATIVE;
-         gbc.gridwidth = 2;
-
-        // Button-Panel: Speichern, ggf. Frage löschen, Abbrechen
+        gbc.gridx = 0; gbc.gridy = GridBagConstraints.RELATIVE;
+        gbc.gridwidth = 2;
         JPanel btnPanel = new JPanel();
 
-        JButton saveBtn   = new JButton("Speichern");
+        JButton saveBtn = new JButton("Speichern");
         configureButton(saveBtn);
         saveBtn.addActionListener(saveListener);
         btnPanel.add(saveBtn);
 
-        // <<< NUR HINZUFÜGEN, wenn ein deleteListener da ist >>>
         if (deleteListener != null) {
             JButton deleteBtn = new JButton("Frage löschen");
             configureButton(deleteBtn);
@@ -340,7 +362,8 @@ public class QuizUI {
         panel.add(btnPanel, gbc);
 
         mainPanel.add(panel, "editQuiz");
-        switchTo("editQuiz");
+        CardLayout cl = (CardLayout) mainPanel.getLayout();
+        cl.show(mainPanel, "editQuiz");
     }
 
     /** Quiz-Auswahl **/

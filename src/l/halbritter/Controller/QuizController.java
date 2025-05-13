@@ -116,21 +116,6 @@ public class QuizController {
         );
     }
 
-    private void handleDeleteQuestion(Question questionToDelete) {
-        int ans = JOptionPane.showConfirmDialog(
-                null,
-                "Soll die Frage wirklich gelöscht werden?\n\""
-                        + questionToDelete.getQuestionText() + "\"",
-                "Frage löschen",
-                JOptionPane.YES_NO_OPTION
-        );
-        if (ans == JOptionPane.YES_OPTION) {
-            Database.deleteQuestion(questionToDelete.getQuestionId());
-            JOptionPane.showMessageDialog(null, "Frage wurde gelöscht!");
-            showQuestionsForEditing();
-        }
-    }
-
     private void handleNewPlayer(ActionEvent e) {
         String name = JOptionPane.showInputDialog(null, "Bitte Namen des neuen Spielers eingeben:");
         if (name != null && !name.trim().isEmpty()) {
@@ -147,10 +132,6 @@ public class QuizController {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("User nicht gefunden"));
         showQuizSelection();
-    }
-
-    private void handleCancelToMain(ActionEvent e) {
-        startApplication();
     }
 
     // 3) Quiz-Auswahl
@@ -269,47 +250,98 @@ public class QuizController {
                 .collect(Collectors.groupingBy(Question::getTopic));
 
         view.addTopicButton.addActionListener(evt -> {
-            String newTopic = JOptionPane.showInputDialog(null, "Neues Thema eingeben:");
-            if (newTopic != null && !newTopic.trim().isEmpty()) {
-                Database.addTopic(newTopic.trim());
-                JOptionPane.showMessageDialog(null, "Thema hinzugefügt!");
-                showQuestionsForEditing();
+            String newTopic = JOptionPane.showInputDialog(
+                    view.getFrame(),
+                    "Neues Thema eingeben:"
+            );
+            if (newTopic == null) {
+                return; // Abbruch
+            }
+            newTopic = newTopic.trim();
+            if (newTopic.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                        view.getFrame(),
+                        "Das Themenfeld darf nicht leer sein.",
+                        "Ungültige Eingabe",
+                        JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+            Database.addTopic(newTopic);
+            JOptionPane.showMessageDialog(
+                    view.getFrame(),
+                    "Thema hinzugefügt!",
+                    "Erfolg",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+            showQuestionsForEditing();
+        });
+
+        // Thema löschen
+        view.deleteTopicButton.addActionListener(evt -> {
+            List<String> topics = Database.loadTopics();
+            if (topics.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                        view.getFrame(),
+                        "Keine Themen zum Löschen vorhanden!",
+                        "Keine Themen",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+                return;
+            }
+            String[] options = topics.toArray(new String[0]);
+            String topicToDelete = (String) JOptionPane.showInputDialog(
+                    view.getFrame(),
+                    "Thema zum Löschen auswählen:",
+                    "Thema löschen",
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    options,
+                    options[0]
+            );
+            if (topicToDelete != null) {
+                int confirm = JOptionPane.showConfirmDialog(
+                        view.getFrame(),
+                        "Möchtest du das Thema \"" + topicToDelete + "\" wirklich löschen?",
+                        "Thema löschen",
+                        JOptionPane.YES_NO_OPTION
+                );
+                if (confirm != JOptionPane.YES_OPTION) return;
+                try {
+                    Database.deleteTopic(topicToDelete);
+                    JOptionPane.showMessageDialog(
+                            view.getFrame(),
+                            "Thema „" + topicToDelete + "“ gelöscht!",
+                            "Erfolg",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+                    showQuestionsForEditing();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(
+                            view.getFrame(),
+                            "Fehler beim Löschen des Themas: " + ex.getMessage(),
+                            "Datenbankfehler",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
             }
         });
-        view.deleteTopicButton.addActionListener(evt -> {
-           List<String> topics = Database.loadTopics();
-           if (topics.isEmpty()) {
-               JOptionPane.showMessageDialog(null, "Keine Themen zum Löschen vorhanden!");
-               return;
-           }
-           String[] options = topics.toArray(new String[0]);
-           String topicToDelete = (String) JOptionPane.showInputDialog(
-                       null,
-                       "Thema zum Löschen auswählen:",
-                       "Thema löschen",
-                       JOptionPane.QUESTION_MESSAGE,
-                       null,
-                       options,
-                       options[0]
-                       );
-           if (topicToDelete != null) {
-               Database.deleteTopic(topicToDelete);
-               JOptionPane.showMessageDialog(null, "Thema „" + topicToDelete + "“ gelöscht!");
-               showQuestionsForEditing();
-           }
-        });
+
+        // Entscheide, ob man Fragen anlegen darf
+        List<String> topics = Database.loadTopics();
+        ActionListener createListener = topics.isEmpty()
+                ? null
+                : e -> view.showEditQuizPanel(
+                this::handleCreateQuestion,
+                null,
+                this::handleCancelToQuestions,
+                topics
+        );
+
         view.showQuestionListPanel(
                 questionsByTopic,
                 this::handleEditQuestion,
-                e -> {
-                    List<String> topics = Database.loadTopics();
-                    view.showEditQuizPanel(
-                            this::handleCreateQuestion,
-                            /*deleteListener=*/ null,
-                            this::handleCancelToQuestions,
-                            topics
-                    );
-                },
+                createListener,
                 this::handleCancelToMain
         );
     }
@@ -324,29 +356,20 @@ public class QuizController {
         if (questionToEdit != null) {
             List<String> topics = Database.loadTopics();
             view.showEditQuizPanel(
-                    // 1) Speichern der Änderungen
                     evt -> createOrUpdateQuestion(questionToEdit),
-                    // 2) Löschen der Frage
                     evt -> handleDeleteQuestion(questionToEdit),
-                    // 3) Abbrechen
                     this::handleCancelToQuestions,
-                    // 4) verfügbare Themen
                     topics
             );
+            // Felder vorbelegen
             view.topicsCombo.setSelectedItem(questionToEdit.getTopic());
             view.questionField.setText(questionToEdit.getQuestionText());
-
             String[] answers = questionToEdit.getAnswers();
             for (int i = 0; i < 4; i++) {
                 view.answerFields[i].setText(answers[i]);
             }
-
             view.correctAnswerCombo.setSelectedIndex(questionToEdit.getCorrectAnswer());
-
-
-            view.difficultyCombo.setSelectedItem(
-                    String.valueOf(questionToEdit.getDifficulty())
-            );
+            view.difficultyCombo.setSelectedItem(String.valueOf(questionToEdit.getDifficulty()));
         }
     }
 
@@ -355,28 +378,126 @@ public class QuizController {
     }
 
     private void createOrUpdateQuestion(Question existingQuestion) {
-        String topic        = (String) view.topicsCombo.getSelectedItem();
-        String questionText = view.questionField.getText();
-        String[] answers    = new String[4];
-        for (int i = 0; i < 4; i++) answers[i] = view.answerFields[i].getText();
-        int correctAnswer   = view.correctAnswerCombo.getSelectedIndex();
+        // Validierung: mindestens ein Thema vorhanden
+        if (view.topicsCombo.getItemCount() == 0) {
+            JOptionPane.showMessageDialog(
+                    view.getFrame(),
+                    "Bitte lege zuerst mindestens ein Thema an.",
+                    "Kein Thema vorhanden",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+        String topic = (String) view.topicsCombo.getSelectedItem();
+        if (topic == null || topic.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    view.getFrame(),
+                    "Bitte ein Thema auswählen.",
+                    "Ungültige Eingabe",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
 
-        int difficulty      = Integer.parseInt((String)view.difficultyCombo.getSelectedItem());
+        String questionText = view.questionField.getText().trim();
+        if (questionText.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    view.getFrame(),
+                    "Der Fragetext darf nicht leer sein.",
+                    "Ungültige Eingabe",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        String[] answers = new String[4];
+        for (int i = 0; i < 4; i++) {
+            answers[i] = view.answerFields[i].getText().trim();
+            if (answers[i].isEmpty()) {
+                JOptionPane.showMessageDialog(
+                        view.getFrame(),
+                        "Antwort " + (i + 1) + " darf nicht leer sein.",
+                        "Ungültige Eingabe",
+                        JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+        }
+
+        int correctAnswer = view.correctAnswerCombo.getSelectedIndex();
+        if (correctAnswer < 0 || correctAnswer > 3) {
+            JOptionPane.showMessageDialog(
+                    view.getFrame(),
+                    "Bitte eine gültige richtige Antwort auswählen.",
+                    "Ungültige Eingabe",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        int difficulty = Integer.parseInt((String) view.difficultyCombo.getSelectedItem());
 
         Question question = existingQuestion != null ? existingQuestion : new Question();
-        if (existingQuestion == null) question.setQuestionId(new Random().nextInt(10_000));
+        if (existingQuestion == null) {
+            question.setQuestionId(new Random().nextInt(10_000));
+        }
+        question.setTopic(topic);
         question.setQuestionText(questionText);
         question.setAnswers(answers);
         question.setCorrectAnswer(correctAnswer);
-        question.setTopic(topic);
-
         question.setDifficulty(difficulty);
 
-        Database.addOrUpdateQuestion(question);
-        JOptionPane.showMessageDialog(null, "Frage wurde gespeichert!");
-        startApplication();
+        try {
+            Database.addOrUpdateQuestion(question);
+            JOptionPane.showMessageDialog(
+                    view.getFrame(),
+                    "Frage wurde gespeichert!",
+                    "Erfolg",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+            startApplication();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(
+                    view.getFrame(),
+                    "Fehler beim Speichern: " + ex.getMessage(),
+                    "Datenbankfehler",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
     }
+    private void handleDeleteQuestion(Question questionToDelete) {
+        int ans = JOptionPane.showConfirmDialog(
+                view.getFrame(),
+                "Soll die Frage wirklich gelöscht werden?\n\"" + questionToDelete.getQuestionText() + "\"",
+                "Frage löschen",
+                JOptionPane.YES_NO_OPTION
+        );
+        if (ans == JOptionPane.YES_OPTION) {
+            try {
+                Database.deleteQuestion(questionToDelete.getQuestionId());
+                JOptionPane.showMessageDialog(
+                        view.getFrame(),
+                        "Frage wurde gelöscht!",
+                        "Erfolg",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+                showQuestionsForEditing();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(
+                        view.getFrame(),
+                        "Fehler beim Löschen der Frage: " + ex.getMessage(),
+                        "Datenbankfehler",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        }
+    }
+
     private void handleCancelToQuestions(ActionEvent e) {
         showQuestionsForEditing();
+    }
+
+    private void handleCancelToMain(ActionEvent e) {
+        startApplication();
     }
 }

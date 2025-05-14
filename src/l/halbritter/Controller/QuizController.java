@@ -73,26 +73,66 @@ public class QuizController {
             return;
         }
 
-        List<Question> questions = Database.loadQuestions();
-        List<Map.Entry<Integer, Integer>> topWorst = counts.entrySet().stream()
+        // 1) Topic-Auswahl: Overall oder ein spezielles Thema
+        List<String> topics = Database.loadTopics();
+        String[] options = new String[topics.size() + 1];
+        options[0] = "Overall";
+        for (int i = 0; i < topics.size(); i++) {
+            options[i + 1] = topics.get(i);
+        }
+        String choice = (String) JOptionPane.showInputDialog(
+                null,
+                "Welche Liste möchtest du sehen?",
+                "Schlechteste Fragen für „" + username + "“",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[0]
+        );
+        if (choice == null) {
+            // Abbruch → zurück zum Hauptmenü
+            startApplication();
+            return;
+        }
+
+        // 2) Fragen laden und filtern
+        List<Question> allQuestions = Database.loadQuestions();
+        var stream = counts.entrySet().stream();
+        if (!choice.equals("Overall")) {
+            stream = stream.filter(entry -> {
+                int qId = entry.getKey();
+                return allQuestions.stream()
+                        .anyMatch(q -> q.getQuestionId() == qId && choice.equals(q.getTopic()));
+            });
+        }
+
+        // 3) Top 10 nach Fehlerhäufigkeit
+        List<Map.Entry<Integer, Integer>> topWorst = stream
                 .sorted(Map.Entry.<Integer, Integer>comparingByValue().reversed())
                 .limit(10)
-                .toList();
+                .collect(Collectors.toList());
 
-        StringBuilder sb = new StringBuilder("10 schlechteste Fragen für ‚" + username + "‘:\n\n");
+        // 4) Nachricht zusammenbauen inklusive Thema
+        StringBuilder sb = new StringBuilder();
+        if (choice.equals("Overall")) {
+            sb.append("Top 10 schlechteste Fragen (Overall) für „").append(username).append("“:\n\n");
+        } else {
+            sb.append("Top 10 schlechteste Fragen zum Thema „").append(choice)
+                    .append("“ für „").append(username).append("“:\n\n");
+        }
         for (var entry : topWorst) {
             int qId = entry.getKey();
             int wrongCount = entry.getValue();
-            questions.stream()
+            allQuestions.stream()
                     .filter(q -> q.getQuestionId() == qId)
                     .findFirst()
                     .ifPresent(q -> sb.append("- ")
                             .append(q.getQuestionText())
-                            .append("  (falsch: ")
-                            .append(wrongCount)
-                            .append("x)\n"));
+                            .append("  [Thema: ").append(q.getTopic()).append("] ")
+                            .append("(falsch: ").append(wrongCount).append("×)\n"));
         }
 
+        // 5) Ausgabe
         JOptionPane.showMessageDialog(
                 null,
                 sb.toString(),

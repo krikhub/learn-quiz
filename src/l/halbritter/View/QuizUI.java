@@ -86,7 +86,7 @@ public class QuizUI {
 
         JButton editBtn = new JButton("Fragen bearbeiten");
         JButton startBtn = new JButton("Quiz starten");
-        JButton worstBtn = new JButton("10 schlechteste Fragen");
+        JButton worstBtn = new JButton("Top 10 schlechteste Fragen");
         JButton exitBtn = new JButton("Beenden");
 
         for (JButton btn : new JButton[]{editBtn, startBtn, worstBtn, exitBtn}) {

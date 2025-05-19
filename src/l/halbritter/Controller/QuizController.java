@@ -308,7 +308,6 @@ public class QuizController {
             }
             db.addTopic(newTopic);
             JOptionPane.showMessageDialog(view.getFrame(), "Thema hinzugefügt!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
-            showQuestionsForEditing();
         });
 
         view.deleteTopicButton.addActionListener(evt -> {
@@ -325,7 +324,6 @@ public class QuizController {
                 try {
                     db.deleteTopic(topicToDelete);
                     JOptionPane.showMessageDialog(view.getFrame(), "Thema „" + topicToDelete + "“ gelöscht!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
-                    showQuestionsForEditing();
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(view.getFrame(), "Fehler beim Löschen des Themas: " + ex.getMessage(), "Datenbankfehler", JOptionPane.ERROR_MESSAGE);
                 }

@@ -1,6 +1,6 @@
 package l.halbritter.Controller;
 
-import l.halbritter.Database.Database;
+import l.halbritter.Database.DatabaseService;
 import l.halbritter.Model.Question;
 import l.halbritter.Model.User;
 import l.halbritter.View.QuizUI;
@@ -15,35 +15,37 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class QuizController {
+
     private final QuizUI view;
+    private final DatabaseService db;
 
     private List<Question> allQuestions;
     private List<Question> currentQuestions;
     private List<Question> wrongQuestions;
     private User currentUser;
 
-    public QuizController() {
-        view = new QuizUI();
+    public QuizController(DatabaseService dbService) {
+        this.view = new QuizUI();
+        this.db = dbService;
     }
 
     public void startApplication() {
-        Database.connect();
-        allQuestions = Database.loadQuestions();
+        db.connect();
+        allQuestions = db.loadQuestions();
 
         view.showMainMenu(
                 e -> showQuestionsForEditing(),
                 e -> showPlayerSelection(),
                 e -> showUserSelectionForWorstQuestions(),
                 e -> {
-                    Database.disconnect();
+                    db.disconnect();
                     System.exit(0);
                 }
         );
     }
 
-    // 1) Auswahl für "10 schlechteste Fragen"
     private void showUserSelectionForWorstQuestions() {
-        List<String> existingUsers = Database.loadUsers().stream()
+        List<String> existingUsers = db.loadUsers().stream()
                 .map(User::getUsername)
                 .collect(Collectors.toList());
 
@@ -56,7 +58,7 @@ public class QuizController {
 
     private void handleUserSelectedForWorstQuestions(ActionEvent e) {
         String username = e.getActionCommand();
-        User user = Database.loadUsers().stream()
+        User user = db.loadUsers().stream()
                 .filter(u -> u.getUsername().equals(username))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("User nicht gefunden"));
@@ -65,7 +67,7 @@ public class QuizController {
         if (counts.isEmpty()) {
             JOptionPane.showMessageDialog(
                     null,
-                    "Keine falsch beantworteten Fragen für ‚" + username + "‘.",
+                    "Keine falsch beantworteten Fragen für „" + username + "“.",
                     "Info",
                     JOptionPane.INFORMATION_MESSAGE
             );
@@ -73,8 +75,7 @@ public class QuizController {
             return;
         }
 
-        // 1) Topic-Auswahl: Overall oder ein spezielles Thema
-        List<String> topics = Database.loadTopics();
+        List<String> topics = db.loadTopics();
         String[] options = new String[topics.size() + 1];
         options[0] = "Overall";
         for (int i = 0; i < topics.size(); i++) {
@@ -90,13 +91,11 @@ public class QuizController {
                 options[0]
         );
         if (choice == null) {
-            // Abbruch → zurück zum Hauptmenü
             startApplication();
             return;
         }
 
-        // 2) Fragen laden und filtern
-        List<Question> allQuestions = Database.loadQuestions();
+        List<Question> allQuestions = db.loadQuestions();
         var stream = counts.entrySet().stream();
         if (!choice.equals("Overall")) {
             stream = stream.filter(entry -> {
@@ -106,13 +105,11 @@ public class QuizController {
             });
         }
 
-        // 3) Top 10 nach Fehlerhäufigkeit
         List<Map.Entry<Integer, Integer>> topWorst = stream
                 .sorted(Map.Entry.<Integer, Integer>comparingByValue().reversed())
                 .limit(10)
                 .collect(Collectors.toList());
 
-        // 4) Nachricht zusammenbauen inklusive Thema
         StringBuilder sb = new StringBuilder();
         if (choice.equals("Overall")) {
             sb.append("Top 10 schlechteste Fragen (Overall) für „").append(username).append("“:\n\n");
@@ -132,7 +129,6 @@ public class QuizController {
                             .append("(falsch: ").append(wrongCount).append("×)\n"));
         }
 
-        // 5) Ausgabe
         JOptionPane.showMessageDialog(
                 null,
                 sb.toString(),
@@ -142,16 +138,15 @@ public class QuizController {
         startApplication();
     }
 
-    // 2) Spieler-Auswahl vor Quiz
     private void showPlayerSelection() {
-        List<String> existingUsers = Database.loadUsers().stream()
+        List<String> existingUsers = db.loadUsers().stream()
                 .map(User::getUsername)
                 .collect(Collectors.toList());
 
         view.showPlayerSelectionPanel(
                 this::handleNewPlayer,
                 this::handleExistingPlayer,
-                this::handleDeletePlayer,     // neu!
+                this::handleDeletePlayer,
                 this::handleCancelToMain,
                 existingUsers
         );
@@ -161,23 +156,22 @@ public class QuizController {
         String name = JOptionPane.showInputDialog(null, "Bitte Namen des neuen Spielers eingeben:");
         if (name != null && !name.trim().isEmpty()) {
             currentUser = new User(name.trim());
-            Database.addOrUpdateUser(currentUser);
+            db.addOrUpdateUser(currentUser);
             showQuizSelection();
         }
     }
 
     private void handleExistingPlayer(ActionEvent e) {
         String selectedName = e.getActionCommand();
-        currentUser = Database.loadUsers().stream()
+        currentUser = db.loadUsers().stream()
                 .filter(u -> u.getUsername().equals(selectedName))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("User nicht gefunden"));
         showQuizSelection();
     }
 
-    // 3) Quiz-Auswahl
     private void showQuizSelection() {
-        List<String> topics = Database.loadTopics();
+        List<String> topics = db.loadTopics();
         view.showQuizSelectionPanel(
                 this::handleBeginQuiz,
                 this::handleCancelToPlayerSelection,
@@ -189,33 +183,26 @@ public class QuizController {
         showPlayerSelection();
     }
 
-    // 4) Quiz starten
     private void handleBeginQuiz(ActionEvent e) {
-        // 1) Thema und Schwierigkeit aus der UI auslesen
         String topic = (String) view.topicSelectionCombo.getSelectedItem();
         String diffStr = (String) view.difficultySelectionCombo.getSelectedItem();
         int difficulty = Integer.parseInt(diffStr);
 
-        // 2) Fragen filtern nach Thema UND Schwierigkeit
         currentQuestions = allQuestions.stream()
                 .filter(q -> topic.equals(q.getTopic()) && q.getDifficulty() == difficulty)
                 .collect(Collectors.toList());
 
-        // 3) OPTIONALE LÖSUNG: Abfangen, wenn gar keine Fragen übrigbleiben
         if (currentQuestions.isEmpty()) {
-            // Hinweis-Dialog
             JOptionPane.showMessageDialog(
                     null,
                     "Keine Fragen für Thema „" + topic + "“ …",
                     "Keine Fragen",
                     JOptionPane.WARNING_MESSAGE
             );
-            // Quiz-Auswahl wieder anzeigen (wenn du eine eigene Methode dafür hast)
             showQuizSelection();
-            return;  // Methode hier beenden, Quiz startet nicht
+            return;
         }
 
-        // 4) Sonst Quiz normal starten
         wrongQuestions = new ArrayList<>();
         askNextQuestion();
     }
@@ -238,44 +225,10 @@ public class QuizController {
                 JOptionPane.YES_NO_OPTION
         );
         if (ans == JOptionPane.YES_OPTION) {
-            Database.deleteUser(name);
+            db.deleteUser(name);
             JOptionPane.showMessageDialog(null, "Spieler \"" + name + "\" wurde gelöscht.");
             showPlayerSelection();
         }
-    }
-
-    private String showQuestionDialog(Question question) {
-        // Modal-Dialog
-        JDialog dialog = new JDialog((Frame) null, "Quiz", true);
-        dialog.setLayout(new BorderLayout(10, 10));
-
-        // Oben die Frage
-        JLabel lblQuestion = new JLabel("<html><body style='width:300px'>" + question.getQuestionText() + "</body></html>");
-        lblQuestion.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
-        dialog.add(lblQuestion, BorderLayout.NORTH);
-
-        // Buttons im 2×2-Grid
-        JPanel buttonPanel = new JPanel(new GridLayout(2, 2, 10, 10));
-        String[] answers = question.getAnswers();
-        // Holder für die gewählte Antwort
-        final String[] selected = { null };
-
-        for (String ans : answers) {
-            JButton btn = new JButton(ans);
-            btn.addActionListener(e -> {
-                selected[0] = ans;
-                dialog.dispose();
-            });
-            buttonPanel.add(btn);
-        }
-        buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
-        dialog.add(buttonPanel, BorderLayout.CENTER);
-
-        dialog.pack();
-        dialog.setLocationRelativeTo(null);
-        dialog.setVisible(true);
-
-        return selected[0];
     }
 
     private void askNextQuestion() {
@@ -286,7 +239,7 @@ public class QuizController {
                 JOptionPane.showMessageDialog(null, "Falsche Fragen werden wiederholt!");
                 askNextQuestion();
             } else {
-                Database.addOrUpdateUser(currentUser);
+                db.addOrUpdateUser(currentUser);
                 JOptionPane.showMessageDialog(null, "Quiz abgeschlossen!");
                 startApplication();
             }
@@ -309,108 +262,82 @@ public class QuizController {
         askNextQuestion();
     }
 
-    // 5) Fragen bearbeiten
+    private String showQuestionDialog(Question question) {
+        JDialog dialog = new JDialog((Frame) null, "Quiz", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+
+        JLabel lblQuestion = new JLabel("<html><body style='width:300px'>" + question.getQuestionText() + "</body></html>");
+        lblQuestion.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
+        dialog.add(lblQuestion, BorderLayout.NORTH);
+
+        JPanel buttonPanel = new JPanel(new GridLayout(2, 2, 10, 10));
+        String[] answers = question.getAnswers();
+        final String[] selected = { null };
+
+        for (String ans : answers) {
+            JButton btn = new JButton(ans);
+            btn.addActionListener(e -> {
+                selected[0] = ans;
+                dialog.dispose();
+            });
+            buttonPanel.add(btn);
+        }
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
+        dialog.add(buttonPanel, BorderLayout.CENTER);
+
+        dialog.pack();
+        dialog.setLocationRelativeTo(null);
+        dialog.setVisible(true);
+
+        return selected[0];
+    }
+
     private void showQuestionsForEditing() {
-        allQuestions = Database.loadQuestions();
+        allQuestions = db.loadQuestions();
         Map<String, List<Question>> questionsByTopic = allQuestions.stream()
                 .filter(q -> q.getTopic() != null)
                 .collect(Collectors.groupingBy(Question::getTopic));
 
         view.addTopicButton.addActionListener(evt -> {
-            String newTopic = JOptionPane.showInputDialog(
-                    view.getFrame(),
-                    "Neues Thema eingeben:"
-            );
-            if (newTopic == null) {
-                return; // Abbruch
-            }
+            String newTopic = JOptionPane.showInputDialog(view.getFrame(), "Neues Thema eingeben:");
+            if (newTopic == null) return;
             newTopic = newTopic.trim();
             if (newTopic.isEmpty()) {
-                JOptionPane.showMessageDialog(
-                        view.getFrame(),
-                        "Das Themenfeld darf nicht leer sein.",
-                        "Ungültige Eingabe",
-                        JOptionPane.WARNING_MESSAGE
-                );
+                JOptionPane.showMessageDialog(view.getFrame(), "Das Themenfeld darf nicht leer sein.", "Ungültige Eingabe", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            Database.addTopic(newTopic);
-            JOptionPane.showMessageDialog(
-                    view.getFrame(),
-                    "Thema hinzugefügt!",
-                    "Erfolg",
-                    JOptionPane.INFORMATION_MESSAGE
-            );
+            db.addTopic(newTopic);
+            JOptionPane.showMessageDialog(view.getFrame(), "Thema hinzugefügt!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
             showQuestionsForEditing();
         });
 
-        // Thema löschen
         view.deleteTopicButton.addActionListener(evt -> {
-            List<String> topics = Database.loadTopics();
+            List<String> topics = db.loadTopics();
             if (topics.isEmpty()) {
-                JOptionPane.showMessageDialog(
-                        view.getFrame(),
-                        "Keine Themen zum Löschen vorhanden!",
-                        "Keine Themen",
-                        JOptionPane.INFORMATION_MESSAGE
-                );
+                JOptionPane.showMessageDialog(view.getFrame(), "Keine Themen zum Löschen vorhanden!", "Keine Themen", JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
             String[] options = topics.toArray(new String[0]);
-            String topicToDelete = (String) JOptionPane.showInputDialog(
-                    view.getFrame(),
-                    "Thema zum Löschen auswählen:",
-                    "Thema löschen",
-                    JOptionPane.QUESTION_MESSAGE,
-                    null,
-                    options,
-                    options[0]
-            );
+            String topicToDelete = (String) JOptionPane.showInputDialog(view.getFrame(), "Thema zum Löschen auswählen:", "Thema löschen", JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
             if (topicToDelete != null) {
-                int confirm = JOptionPane.showConfirmDialog(
-                        view.getFrame(),
-                        "Möchtest du das Thema \"" + topicToDelete + "\" wirklich löschen?",
-                        "Thema löschen",
-                        JOptionPane.YES_NO_OPTION
-                );
+                int confirm = JOptionPane.showConfirmDialog(view.getFrame(), "Möchtest du das Thema \"" + topicToDelete + "\" wirklich löschen?", "Thema löschen", JOptionPane.YES_NO_OPTION);
                 if (confirm != JOptionPane.YES_OPTION) return;
                 try {
-                    Database.deleteTopic(topicToDelete);
-                    JOptionPane.showMessageDialog(
-                            view.getFrame(),
-                            "Thema „" + topicToDelete + "“ gelöscht!",
-                            "Erfolg",
-                            JOptionPane.INFORMATION_MESSAGE
-                    );
+                    db.deleteTopic(topicToDelete);
+                    JOptionPane.showMessageDialog(view.getFrame(), "Thema „" + topicToDelete + "“ gelöscht!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
                     showQuestionsForEditing();
                 } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(
-                            view.getFrame(),
-                            "Fehler beim Löschen des Themas: " + ex.getMessage(),
-                            "Datenbankfehler",
-                            JOptionPane.ERROR_MESSAGE
-                    );
+                    JOptionPane.showMessageDialog(view.getFrame(), "Fehler beim Löschen des Themas: " + ex.getMessage(), "Datenbankfehler", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
 
-        // Entscheide, ob man Fragen anlegen darf
-        List<String> topics = Database.loadTopics();
+        List<String> topics = db.loadTopics();
         ActionListener createListener = topics.isEmpty()
                 ? null
-                : e -> view.showEditQuizPanel(
-                this::handleCreateQuestion,
-                null,
-                this::handleCancelToQuestions,
-                topics
-        );
+                : e -> view.showEditQuizPanel(this::handleCreateQuestion, null, this::handleCancelToQuestions, topics);
 
-        view.showQuestionListPanel(
-                questionsByTopic,
-                this::handleEditQuestion,
-                createListener,
-                this::handleCancelToMain
-        );
+        view.showQuestionListPanel(questionsByTopic, this::handleEditQuestion, createListener, this::handleCancelToMain);
     }
 
     private void handleEditQuestion(ActionEvent e) {
@@ -421,14 +348,13 @@ public class QuizController {
                 .orElse(null);
 
         if (questionToEdit != null) {
-            List<String> topics = Database.loadTopics();
+            List<String> topics = db.loadTopics();
             view.showEditQuizPanel(
                     evt -> createOrUpdateQuestion(questionToEdit),
                     evt -> handleDeleteQuestion(questionToEdit),
                     this::handleCancelToQuestions,
                     topics
             );
-            // Felder vorbelegen
             view.topicsCombo.setSelectedItem(questionToEdit.getTopic());
             view.questionField.setText(questionToEdit.getQuestionText());
             String[] answers = questionToEdit.getAnswers();
@@ -445,35 +371,19 @@ public class QuizController {
     }
 
     private void createOrUpdateQuestion(Question existingQuestion) {
-        // Validierung: mindestens ein Thema vorhanden
         if (view.topicsCombo.getItemCount() == 0) {
-            JOptionPane.showMessageDialog(
-                    view.getFrame(),
-                    "Bitte lege zuerst mindestens ein Thema an.",
-                    "Kein Thema vorhanden",
-                    JOptionPane.ERROR_MESSAGE
-            );
+            JOptionPane.showMessageDialog(view.getFrame(), "Bitte lege zuerst mindestens ein Thema an.", "Kein Thema vorhanden", JOptionPane.ERROR_MESSAGE);
             return;
         }
         String topic = (String) view.topicsCombo.getSelectedItem();
         if (topic == null || topic.trim().isEmpty()) {
-            JOptionPane.showMessageDialog(
-                    view.getFrame(),
-                    "Bitte ein Thema auswählen.",
-                    "Ungültige Eingabe",
-                    JOptionPane.WARNING_MESSAGE
-            );
+            JOptionPane.showMessageDialog(view.getFrame(), "Bitte ein Thema auswählen.", "Ungültige Eingabe", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         String questionText = view.questionField.getText().trim();
         if (questionText.isEmpty()) {
-            JOptionPane.showMessageDialog(
-                    view.getFrame(),
-                    "Der Fragetext darf nicht leer sein.",
-                    "Ungültige Eingabe",
-                    JOptionPane.WARNING_MESSAGE
-            );
+            JOptionPane.showMessageDialog(view.getFrame(), "Der Fragetext darf nicht leer sein.", "Ungültige Eingabe", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -481,24 +391,14 @@ public class QuizController {
         for (int i = 0; i < 4; i++) {
             answers[i] = view.answerFields[i].getText().trim();
             if (answers[i].isEmpty()) {
-                JOptionPane.showMessageDialog(
-                        view.getFrame(),
-                        "Antwort " + (i + 1) + " darf nicht leer sein.",
-                        "Ungültige Eingabe",
-                        JOptionPane.WARNING_MESSAGE
-                );
+                JOptionPane.showMessageDialog(view.getFrame(), "Antwort " + (i + 1) + " darf nicht leer sein.", "Ungültige Eingabe", JOptionPane.WARNING_MESSAGE);
                 return;
             }
         }
 
         int correctAnswer = view.correctAnswerCombo.getSelectedIndex();
         if (correctAnswer < 0 || correctAnswer > 3) {
-            JOptionPane.showMessageDialog(
-                    view.getFrame(),
-                    "Bitte eine gültige richtige Antwort auswählen.",
-                    "Ungültige Eingabe",
-                    JOptionPane.WARNING_MESSAGE
-            );
+            JOptionPane.showMessageDialog(view.getFrame(), "Bitte eine gültige richtige Antwort auswählen.", "Ungültige Eingabe", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -515,47 +415,23 @@ public class QuizController {
         question.setDifficulty(difficulty);
 
         try {
-            Database.addOrUpdateQuestion(question);
-            JOptionPane.showMessageDialog(
-                    view.getFrame(),
-                    "Frage wurde gespeichert!",
-                    "Erfolg",
-                    JOptionPane.INFORMATION_MESSAGE
-            );
+            db.addOrUpdateQuestion(question);
+            JOptionPane.showMessageDialog(view.getFrame(), "Frage wurde gespeichert!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
             startApplication();
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(
-                    view.getFrame(),
-                    "Fehler beim Speichern: " + ex.getMessage(),
-                    "Datenbankfehler",
-                    JOptionPane.ERROR_MESSAGE
-            );
+            JOptionPane.showMessageDialog(view.getFrame(), "Fehler beim Speichern: " + ex.getMessage(), "Datenbankfehler", JOptionPane.ERROR_MESSAGE);
         }
     }
+
     private void handleDeleteQuestion(Question questionToDelete) {
-        int ans = JOptionPane.showConfirmDialog(
-                view.getFrame(),
-                "Soll die Frage wirklich gelöscht werden?\n\"" + questionToDelete.getQuestionText() + "\"",
-                "Frage löschen",
-                JOptionPane.YES_NO_OPTION
-        );
+        int ans = JOptionPane.showConfirmDialog(view.getFrame(), "Soll die Frage wirklich gelöscht werden?\n\"" + questionToDelete.getQuestionText() + "\"", "Frage löschen", JOptionPane.YES_NO_OPTION);
         if (ans == JOptionPane.YES_OPTION) {
             try {
-                Database.deleteQuestion(questionToDelete.getQuestionId());
-                JOptionPane.showMessageDialog(
-                        view.getFrame(),
-                        "Frage wurde gelöscht!",
-                        "Erfolg",
-                        JOptionPane.INFORMATION_MESSAGE
-                );
+                db.deleteQuestion(questionToDelete.getQuestionId());
+                JOptionPane.showMessageDialog(view.getFrame(), "Frage wurde gelöscht!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
                 showQuestionsForEditing();
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(
-                        view.getFrame(),
-                        "Fehler beim Löschen der Frage: " + ex.getMessage(),
-                        "Datenbankfehler",
-                        JOptionPane.ERROR_MESSAGE
-                );
+                JOptionPane.showMessageDialog(view.getFrame(), "Fehler beim Löschen der Frage: " + ex.getMessage(), "Datenbankfehler", JOptionPane.ERROR_MESSAGE);
             }
         }
     }

@@ -1,16 +1,18 @@
 package l.halbritter.Database;
 
-import l.halbritter.Model.User;
 import l.halbritter.Model.Question;
+import l.halbritter.Model.User;
 
 import java.sql.*;
 import java.util.*;
 
-public class Database {
-    private static final String URL = "jdbc:sqlite:quiz.db";
-    private static Connection connection;
+public class DatabaseImpl implements DatabaseService {
 
-    public static void connect() {
+    private static final String URL = "jdbc:sqlite:quiz.db";
+    private Connection connection;
+
+    @Override
+    public void connect() {
         if (connection != null) return;
         try {
             connection = DriverManager.getConnection(URL);
@@ -27,7 +29,7 @@ public class Database {
         }
     }
 
-    private static void initializeDatabase() {
+    private void initializeDatabase() {
         String createUsers = """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +68,6 @@ public class Database {
             stmt.execute(createQuestions);
             stmt.execute(createTopics);
             stmt.execute(createWrong);
-            // Spalte correct schon durch CREATE, nachträglich difficulty falls nötig
             try {
                 stmt.execute("ALTER TABLE questions ADD COLUMN difficulty INTEGER NOT NULL DEFAULT 1");
             } catch (SQLException ignore) {}
@@ -75,7 +76,21 @@ public class Database {
         }
     }
 
-    public static synchronized void addOrUpdateUser(User user) {
+    @Override
+    public void disconnect() {
+        if (connection != null) {
+            try {
+                connection.close();
+                System.out.println("Datenbankverbindung geschlossen.");
+            } catch (SQLException e) {
+                System.err.println("Fehler beim Schließen der Verbindung: " + e.getMessage());
+            }
+            connection = null;
+        }
+    }
+
+    @Override
+    public void addOrUpdateUser(User user) {
         String insertUser = "INSERT INTO users (username) VALUES (?) ON CONFLICT(username) DO NOTHING";
         String upsertWrong = """
             INSERT INTO user_wrong_answers (user_id, question_id, wrong_count)
@@ -107,7 +122,8 @@ public class Database {
         }
     }
 
-    public static List<User> loadUsers() {
+    @Override
+    public List<User> loadUsers() {
         List<User> users = new ArrayList<>();
         String sqlUsers = "SELECT id, username FROM users";
         try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sqlUsers)) {
@@ -132,7 +148,8 @@ public class Database {
         return users;
     }
 
-    public static List<Question> loadQuestions() {
+    @Override
+    public List<Question> loadQuestions() {
         List<Question> questions = new ArrayList<>();
         String sql = "SELECT id, question, answer, topic, correctAnswer, difficulty FROM questions";
         try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
@@ -153,7 +170,8 @@ public class Database {
         return questions;
     }
 
-    public static synchronized void addOrUpdateQuestion(Question question) {
+    @Override
+    public void addOrUpdateQuestion(Question question) {
         String sql = """
             INSERT INTO questions (id, question, answer, topic, correctAnswer, difficulty)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -177,7 +195,8 @@ public class Database {
         }
     }
 
-    public static synchronized void deleteQuestion(int questionId) {
+    @Override
+    public void deleteQuestion(int questionId) {
         String sql = "DELETE FROM questions WHERE id = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setInt(1, questionId);
@@ -187,7 +206,8 @@ public class Database {
         }
     }
 
-    public static List<String> loadTopics() {
+    @Override
+    public List<String> loadTopics() {
         List<String> topics = new ArrayList<>();
         String sql = "SELECT name FROM topics ORDER BY name ASC";
         try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
@@ -198,7 +218,8 @@ public class Database {
         return topics;
     }
 
-    public static synchronized void addTopic(String topic) {
+    @Override
+    public void addTopic(String topic) {
         String sql = "INSERT INTO topics (name) VALUES (?) ON CONFLICT(name) DO NOTHING";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, topic);
@@ -208,27 +229,24 @@ public class Database {
         }
     }
 
-    public static synchronized void deleteTopic(String topic) {
+    @Override
+    public void deleteTopic(String topic) {
         String deleteQuestionsSql = "DELETE FROM questions WHERE topic = ?";
         String deleteTopicSql     = "DELETE FROM topics WHERE name = ?";
 
         try {
-            // Transaktion starten
             connection.setAutoCommit(false);
 
-            // 1) Alle Fragen zum Topic löschen
             try (PreparedStatement ps1 = connection.prepareStatement(deleteQuestionsSql)) {
                 ps1.setString(1, topic);
                 ps1.executeUpdate();
             }
 
-            // 2) Danach das Topic selbst löschen
             try (PreparedStatement ps2 = connection.prepareStatement(deleteTopicSql)) {
                 ps2.setString(1, topic);
                 ps2.executeUpdate();
             }
 
-            // Wenn alles ok, Commit
             connection.commit();
         } catch (SQLException e) {
             try {
@@ -246,12 +264,11 @@ public class Database {
         }
     }
 
-    public static synchronized void deleteUser(String username) {
+    @Override
+    public void deleteUser(String username) {
         try {
-            // 1) Transaktion beginnen
             connection.setAutoCommit(false);
 
-            // 2) zuerst alle falschen Antworten / user_wrong_answers löschen
             String sqlWrong = "DELETE FROM user_wrong_answers WHERE user_id = ?";
             try (PreparedStatement ps = connection.prepareStatement(sqlWrong)) {
                 int userId = getUserId(username);
@@ -259,14 +276,12 @@ public class Database {
                 ps.executeUpdate();
             }
 
-            // 3) dann den User selbst löschen
             String sqlUser = "DELETE FROM users WHERE username = ?";
             try (PreparedStatement ps = connection.prepareStatement(sqlUser)) {
                 ps.setString(1, username);
                 ps.executeUpdate();
             }
 
-            // 4) Commit oder Rollback
             connection.commit();
         } catch (SQLException e) {
             try { connection.rollback(); } catch (SQLException ex) { /* log rollback-Fehler */ }
@@ -276,19 +291,7 @@ public class Database {
         }
     }
 
-    public static void disconnect() {
-        if (connection != null) {
-            try {
-                connection.close();
-                System.out.println("Datenbankverbindung geschlossen.");
-            } catch (SQLException e) {
-                System.err.println("Fehler beim Schließen der Verbindung: " + e.getMessage());
-            }
-            connection = null;
-        }
-    }
-
-    private static int getUserId(String username) throws SQLException {
+    private int getUserId(String username) throws SQLException {
         String sql = "SELECT id FROM users WHERE username = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, username);

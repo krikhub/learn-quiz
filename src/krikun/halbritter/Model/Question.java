@@ -3,7 +3,7 @@
  * IU Internationale Hochschule, Hamburg
  * SPDX-License-Identifier: MIT
  */
-package l.halbritter.Model;
+package krikun.halbritter.Model;
 
 public class Question {
 

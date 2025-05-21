@@ -3,12 +3,12 @@
  * IU Internationale Hochschule, Hamburg
  * SPDX-License-Identifier: MIT
  */
-package l.halbritter.Controller;
+package krikun.halbritter.Controller;
 
-import l.halbritter.Database.DatabaseService;
-import l.halbritter.Model.Question;
-import l.halbritter.Model.User;
-import l.halbritter.View.QuizUI;
+import krikun.halbritter.Database.DatabaseService;
+import krikun.halbritter.Model.Question;
+import krikun.halbritter.Model.User;
+import krikun.halbritter.View.QuizUI;
 
 import javax.swing.*;
 import java.awt.*;

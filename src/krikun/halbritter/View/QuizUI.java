@@ -3,9 +3,9 @@
  * IU Internationale Hochschule, Hamburg
  * SPDX-License-Identifier: MIT
  */
-package l.halbritter.View;
+package krikun.halbritter.View;
 
-import l.halbritter.Model.Question;
+import krikun.halbritter.Model.Question;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;

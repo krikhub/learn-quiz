@@ -323,6 +323,10 @@ public class QuizController {
                 .filter(q -> q.getTopic() != null)
                 .collect(Collectors.groupingBy(Question::getTopic));
 
+        for (ActionListener al : view.addTopicButton.getActionListeners()) {
+            view.addTopicButton.removeActionListener(al);
+        }
+
         view.addTopicButton.addActionListener(evt -> {
             String newTopic = JOptionPane.showInputDialog(view.getFrame(), "Neues Thema eingeben:");
             if (newTopic == null) return;
@@ -333,8 +337,12 @@ public class QuizController {
             }
             db.addTopic(newTopic);
             JOptionPane.showMessageDialog(view.getFrame(), "Thema hinzugefügt!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
+            showQuestionsForEditing();
         });
 
+        for (ActionListener al : view.deleteTopicButton.getActionListeners()) {
+            view.deleteTopicButton.removeActionListener(al);
+        }
         view.deleteTopicButton.addActionListener(evt -> {
             List<String> topics = db.loadTopics();
             if (topics.isEmpty()) {
@@ -349,6 +357,7 @@ public class QuizController {
                 try {
                     db.deleteTopic(topicToDelete);
                     JOptionPane.showMessageDialog(view.getFrame(), "Thema „" + topicToDelete + "“ gelöscht!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
+                    showQuestionsForEditing();
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(view.getFrame(), "Fehler beim Löschen des Themas: " + ex.getMessage(), "Datenbankfehler", JOptionPane.ERROR_MESSAGE);
                 }

@@ -1,3 +1,8 @@
+/*
+ * © 2025 Luca Halbritter und Alexander Krikun
+ * IU Internationale Hochschule, Hamburg
+ * SPDX-License-Identifier: MIT
+ */
 package l.halbritter.Model;
 
 import java.util.*;

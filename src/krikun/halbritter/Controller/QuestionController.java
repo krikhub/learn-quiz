@@ -35,6 +35,7 @@ public class QuestionController {
             String topic = JOptionPane.showInputDialog(view.getFrame(), "Neues Thema:");
             if (topic != null && !topic.trim().isEmpty()) {
                 db.addTopic(topic.trim());
+                JOptionPane.showMessageDialog(view.getFrame(), "Thema wurde erfolgreich hinzugefügt.", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
                 showQuestionsForEditing();
             }
         });
@@ -46,6 +47,7 @@ public class QuestionController {
                     JOptionPane.QUESTION_MESSAGE, null, topics.toArray(), topics.isEmpty() ? null : topics.get(0));
             if (topic != null) {
                 db.deleteTopic(topic);
+                JOptionPane.showMessageDialog(view.getFrame(), "Thema wurde gelöscht.", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
                 showQuestionsForEditing();
             }
         });
@@ -66,6 +68,7 @@ public class QuestionController {
                     ev -> saveQuestion(q),
                     ev -> {
                         db.deleteQuestion(q.getQuestionId());
+                        JOptionPane.showMessageDialog(view.getFrame(), "Frage wurde gelöscht.", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
                         showQuestionsForEditing();
                     },
                     this::cancelBack,
@@ -86,6 +89,7 @@ public class QuestionController {
     private void saveQuestion(Question existingQuestion) {
         if (view.topicsCombo.getItemCount() == 0) {
             JOptionPane.showMessageDialog(view.getFrame(), "Bitte lege zuerst mindestens ein Thema an.", "Kein Thema vorhanden", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(view.getFrame(), "Frage wurde gespeichert.", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 

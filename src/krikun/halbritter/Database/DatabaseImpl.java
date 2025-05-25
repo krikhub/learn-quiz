@@ -73,9 +73,6 @@ public class DatabaseImpl implements DatabaseService {
             stmt.execute(createQuestions);
             stmt.execute(createTopics);
             stmt.execute(createWrong);
-            try {
-                stmt.execute("ALTER TABLE questions ADD COLUMN difficulty INTEGER NOT NULL DEFAULT 1");
-            } catch (SQLException ignore) {}
         } catch (SQLException e) {
             System.err.println("Fehler beim Initialisieren der Datenbank: " + e.getMessage());
         }

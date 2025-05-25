@@ -122,10 +122,9 @@ public class QuestionController {
 
         int difficulty = Integer.parseInt((String) view.difficultyCombo.getSelectedItem());
 
-        Question question = existingQuestion != null ? existingQuestion : new Question();
-        if (existingQuestion == null) {
-            question.setQuestionId(new Random().nextInt(10_000));
-        }
+        Question question = (existingQuestion != null)
+                ? existingQuestion
+                : new Question();
 
         question.setTopic(topic);
         question.setQuestionText(questionText);
@@ -136,7 +135,7 @@ public class QuestionController {
         try {
             db.addOrUpdateQuestion(question);
             JOptionPane.showMessageDialog(view.getFrame(), "Frage wurde gespeichert!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
-            showQuestionsForEditing();  // statt startApplication()
+            showQuestionsForEditing();  
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(view.getFrame(), "Fehler beim Speichern: " + ex.getMessage(), "Datenbankfehler", JOptionPane.ERROR_MESSAGE);
         }

@@ -171,32 +171,60 @@ public class DatabaseImpl implements DatabaseService {
         }
         return questions;
     }
-
+    
     @Override
     public void addOrUpdateQuestion(Question question) {
-        String sql = """
-            INSERT INTO questions (id, question, answer, topic, correctAnswer, difficulty)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE
-              SET question   = excluded.question,
-                  answer     = excluded.answer,
-                  topic      = excluded.topic,
-                  correctAnswer    = excluded.correctAnswer,
-                  difficulty = excluded.difficulty
+        // 1. NEUE Frage? (questionId ≤ 0)
+        if (question.getQuestionId() <= 0) {
+            String sqlInsert = """
+            INSERT INTO questions 
+               (question, answer, topic, correctAnswer, difficulty)
+            VALUES (?, ?, ?, ?, ?)
         """;
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setInt(1, question.getQuestionId());
-            ps.setString(2, question.getQuestionText());
-            ps.setString(3, question.getAnswerAsCSV());
-            ps.setString(4, question.getTopic());
-            ps.setInt(5, question.getCorrectAnswer());
-            ps.setInt(6, question.getDifficulty());
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            System.err.println("Fehler beim Hinzufügen/Aktualisieren der Frage: " + e.getMessage());
+            try (PreparedStatement ps = connection.prepareStatement(
+                    sqlInsert, Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, question.getQuestionText());
+                ps.setString(2, question.getAnswerAsCSV());
+                ps.setString(3, question.getTopic());
+                ps.setInt(4, question.getCorrectAnswer());
+                ps.setInt(5, question.getDifficulty());
+                ps.executeUpdate();
+
+                // Generierte ID auslesen und im Objekt speichern
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        question.setQuestionId(rs.getInt(1));
+                    }
+                }
+            } catch (SQLException e) {
+                System.err.println("Fehler beim Einfügen der Frage: " + e.getMessage());
+            }
+        }
+        // 2. Bestands-Frage updaten
+        else {
+            String sqlUpdate = """
+            UPDATE questions
+               SET question     = ?,
+                   answer       = ?,
+                   topic        = ?,
+                   correctAnswer= ?,
+                   difficulty   = ?
+             WHERE id = ?
+        """;
+            try (PreparedStatement ps = connection.prepareStatement(sqlUpdate)) {
+                ps.setString(1, question.getQuestionText());
+                ps.setString(2, question.getAnswerAsCSV());
+                ps.setString(3, question.getTopic());
+                ps.setInt(4, question.getCorrectAnswer());
+                ps.setInt(5, question.getDifficulty());
+                ps.setInt(6, question.getQuestionId());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                System.err.println("Fehler beim Aktualisieren der Frage: " + e.getMessage());
+            }
         }
     }
-
+    
     @Override
     public void deleteQuestion(int questionId) {
         String sql = "DELETE FROM questions WHERE id = ?";

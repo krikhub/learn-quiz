@@ -19,7 +19,6 @@ public class Question {
      */
     public Question() {
         this.difficulty = 1;
-        this.correctAnswer = 0;
     }
 
     /**

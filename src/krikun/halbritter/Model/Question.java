@@ -38,24 +38,6 @@ public class Question {
         this.difficulty     = difficulty;
     }
 
-    /**
-     * Vollständiger Konstruktor
-     * @param questionId      ID der Frage
-     * @param questionText    Text der Frage
-     * @param answers         Array mit vier Antworten
-     * @param correctAnswer   Index der korrekten Antwort
-     * @param topic           Themenbereich
-     * @param difficulty      Schwierigkeit (1-3)
-     */
-    public Question(int questionId, String questionText, String[] answers, int correctAnswer, String topic, int difficulty) {
-        this.questionId = questionId;
-        this.questionText = questionText;
-        this.answers = answers;
-        this.correctAnswer = correctAnswer;
-        this.topic = topic;
-        this.difficulty = difficulty;
-    }
-
     public int getQuestionId() {
         return questionId;
     }
@@ -103,10 +85,7 @@ public class Question {
     public void setDifficulty(int difficulty) {
         this.difficulty = difficulty;
     }
-
-    /**
-     * Wandelt das Antwort-Array in einen |-separierten String um, zum Speichern in der DB
-     */
+    
     public String getAnswerAsCSV() {
         return String.join("|", answers);
     }

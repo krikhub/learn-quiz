@@ -21,8 +21,7 @@ import java.awt.event.MouseEvent;
 public class QuizUI {
     private JFrame frame;
     private JPanel mainPanel;
-
-    // Shared components für Controller-Zugriff
+    
     public JButton addTopicButton = new JButton("Thema hinzufügen");
     public JButton deleteTopicButton = new JButton("Thema löschen");
     public JButton deletePlayerButton;
@@ -44,7 +43,6 @@ public class QuizUI {
     private final Insets panelInsets = new Insets(10, 10, 10, 10);
 
     public QuizUI() {
-        // System Look & Feel
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
@@ -59,8 +57,7 @@ public class QuizUI {
         frame.setContentPane(mainPanel);
         frame.setVisible(true);
     }
-
-    /** Neuer Getter für Parent bei Dialogen **/
+    
     public JFrame getFrame() {
         return frame;
     }
@@ -177,14 +174,10 @@ public class QuizUI {
         userList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                // nur bei echtem Doppelklick reagieren
                 if (e.getClickCount() == 2 && !e.isConsumed()) {
-                    e.consume();  // weiter Doppelerkennung unterbinden
-                    // aktuelles Element auslesen
+                    e.consume();  
                     String selected = userList.getSelectedValue();
                     if (selected != null) {
-                        // genau so, wie der ListSelectionListener vorher, das
-                        // ActionEvent an den Controller schicken:
                         existingPlayerListener.actionPerformed(
                                 new ActionEvent(
                                         this,
@@ -230,11 +223,9 @@ public class QuizUI {
             ActionListener createListener,
             ActionListener cancelListener
     ) {
-        // 1) Hauptpanel mit Innenabstand und Lücken
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-
-        // 2) Top: Toolbar statt einfachem Button-Panel
+        
         JToolBar toolBar = new JToolBar();
         toolBar.setFloatable(false);
         configureButton(addTopicButton);
@@ -243,13 +234,11 @@ public class QuizUI {
         toolBar.addSeparator(new Dimension(10, 0));
         toolBar.add(deleteTopicButton);
         panel.add(toolBar, BorderLayout.NORTH);
-
-        // 3) Mitte: JTabbedPane pro Thema für übersichtliche Tabs
+        
         JTabbedPane tabbedPane = new JTabbedPane();
         for (String topic : questionsByTopic.keySet()) {
             List<Question> qs = questionsByTopic.get(topic);
-
-            // Panel mit vertikalem Abstand zwischen den Buttons
+            
             JPanel topicPanel = new JPanel();
             topicPanel.setLayout(new BoxLayout(topicPanel, BoxLayout.Y_AXIS));
             topicPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -271,8 +260,7 @@ public class QuizUI {
             tabbedPane.addTab(topic, scroll);
         }
         panel.add(tabbedPane, BorderLayout.CENTER);
-
-        // 4) Bottom: FlowLayout rechtsbündig, mit einheitlichem Button-Look
+        
         JPanel bottomBtnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         JButton newQuestionBtn = new JButton("Neue Frage");
         configureButton(newQuestionBtn);
@@ -290,8 +278,7 @@ public class QuizUI {
         bottomBtnPanel.add(cancelBtn);
 
         panel.add(bottomBtnPanel, BorderLayout.SOUTH);
-
-        // 5) Panel ins CardLayout einfügen
+        
         mainPanel.add(panel, "questionList");
         CardLayout cl = (CardLayout) mainPanel.getLayout();
         cl.show(mainPanel, "questionList");
@@ -307,24 +294,21 @@ public class QuizUI {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(5, 5, 5, 5);
-
-        // Thema
+        
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Thema:"), gbc);
         topicsCombo = new JComboBox<>(topics.toArray(new String[0]));
         topicsCombo.setToolTipText("Thema auswählen");
         gbc.gridx = 1; gbc.gridy = 0;
         panel.add(topicsCombo, gbc);
-
-        // Frage
+        
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Frage:"), gbc);
         questionField = new JTextField();
         questionField.setToolTipText("Hier Frage eingeben…");
         gbc.gridx = 1; gbc.gridy = 1;
         panel.add(questionField, gbc);
-
-        // Antworten
+        
         answerFields = new JTextField[4];
         for (int i = 0; i < 4; i++) {
             gbc.gridx = 0; gbc.gridy = 2 + i;
@@ -334,24 +318,21 @@ public class QuizUI {
             gbc.gridx = 1; gbc.gridy = 2 + i;
             panel.add(answerFields[i], gbc);
         }
-
-        // Schwierigkeit
+        
         gbc.gridx = 0; gbc.gridy = 6;
         panel.add(new JLabel("Schwierigkeit:"), gbc);
         difficultyCombo = new JComboBox<>(new String[]{"1", "2", "3"});
         difficultyCombo.setToolTipText("Schwierigkeit auswählen");
         gbc.gridx = 1; gbc.gridy = 6;
         panel.add(difficultyCombo, gbc);
-
-        // Richtige Antwort
+        
         gbc.gridx = 0; gbc.gridy = 7;
         panel.add(new JLabel("Richtige Antwort:"), gbc);
         correctAnswerCombo = new JComboBox<>(new String[]{"1", "2", "3", "4"});
         correctAnswerCombo.setToolTipText("Richtige Antwort auswählen");
         gbc.gridx = 1; gbc.gridy = 7;
         panel.add(correctAnswerCombo, gbc);
-
-        // Buttons
+        
         gbc.gridx = 0; gbc.gridy = GridBagConstraints.RELATIVE;
         gbc.gridwidth = 2;
         JPanel btnPanel = new JPanel();
@@ -389,22 +370,19 @@ public class QuizUI {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(5, 5, 5, 5);
-
-        // Thema auswählen
+        
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Thema wählen:"), gbc);
         topicSelectionCombo = new JComboBox<>(topics.toArray(new String[0]));
         gbc.gridx = 1; gbc.gridy = 0;
         panel.add(topicSelectionCombo, gbc);
-
-        // Schwierigkeit auswählen
+        
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Schwierigkeit:"), gbc);
         difficultySelectionCombo = new JComboBox<>(new String[]{"1", "2", "3"});
         gbc.gridx = 1; gbc.gridy = 1;
         panel.add(difficultySelectionCombo, gbc);
-
-        // Buttons
+        
         gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.CENTER;
         JPanel btnP = new JPanel();
         JButton startBtn = new JButton("Quiz starten");

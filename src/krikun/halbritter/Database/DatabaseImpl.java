@@ -174,7 +174,6 @@ public class DatabaseImpl implements DatabaseService {
     
     @Override
     public void addOrUpdateQuestion(Question question) {
-        // 1. NEUE Frage? (questionId ≤ 0)
         if (question.getQuestionId() <= 0) {
             String sqlInsert = """
             INSERT INTO questions 
@@ -189,8 +188,7 @@ public class DatabaseImpl implements DatabaseService {
                 ps.setInt(4, question.getCorrectAnswer());
                 ps.setInt(5, question.getDifficulty());
                 ps.executeUpdate();
-
-                // Generierte ID auslesen und im Objekt speichern
+                
                 try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         question.setQuestionId(rs.getInt(1));
@@ -200,7 +198,6 @@ public class DatabaseImpl implements DatabaseService {
                 System.err.println("Fehler beim Einfügen der Frage: " + e.getMessage());
             }
         }
-        // 2. Bestands-Frage updaten
         else {
             String sqlUpdate = """
             UPDATE questions
